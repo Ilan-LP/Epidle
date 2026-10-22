@@ -39,6 +39,15 @@ pnpm --filter @epidle/web build      # production build in apps/web/dist
 | `DATABASE_PATH` | server | `apps/server/data/epidle.db` (created on first start) |
 | `EPIDLE_SERVER_URL` | cli | `http://localhost:3000` |
 
+## Balance simulation
+
+```sh
+pnpm sim                                   # 3 greedy bots play a full season, prints tables
+pnpm sim '{"rooms":{"costGrowth":2}}'      # same with a config variant, no file edit
+```
+
+Every balance number lives in `packages/core/src/config.ts`. The bots (`packages/sim`) buy the action with the best payback and visit every 2 min, 30 min and 8 h. `packages/sim/src/balance.test.ts` runs the same season in `pnpm test` and fails if a config change breaks a tuning target (saturation, casual/hardcore ratio, tier pacing, no debt, no overflow).
+
 ## Checks
 
 ```sh
@@ -76,6 +85,7 @@ Every dependency needs a one-line justification. Add a row here when you add one
 
 ```
 packages/core   @epidle/core    pure, deterministic game logic shared by everyone
+packages/sim    @epidle/sim     headless balance simulation with greedy bots
 apps/server     @epidle/server  Fastify + SQLite, authoritative game server
 apps/web        @epidle/web     React + Vite client
 apps/cli        @epidle/cli     Ink terminal client
