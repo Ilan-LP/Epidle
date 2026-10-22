@@ -12,7 +12,8 @@
     "lint": "biome check .",
     "format": "biome format --write .",
     "typecheck": "pnpm -r typecheck",
-    "test": "vitest run"
+    "test": "vitest run",
+    "sim": "pnpm --filter @epidle/sim start"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.6.2",
