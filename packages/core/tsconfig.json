@@ -1,0 +1,8 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // No Node or DOM types: core must stay pure (no IO, no timers, no process).
+    "types": []
+  },
+  "include": ["src"]
+}
