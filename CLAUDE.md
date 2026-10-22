@@ -7,7 +7,7 @@ It is a fun side project: keep it simple and shippable.
 ## Product (decided)
 - Web client and terminal client, both using the same server. The server is required to play.
 - Login with Microsoft SSO (Epitech accounts only). Public identity is a pseudo, never the real name.
-- Leaderboard for the Lyon campus only.
+- Made for Epitech Lyon, open to any Epitech account. One leaderboard for everyone who plays.
 - Programming language choice (C, TypeScript, Python...) is purely cosmetic: code snippets, prompt, colors. Never balance around it.
 - UI text in French. Code, comments and docs in English.
 

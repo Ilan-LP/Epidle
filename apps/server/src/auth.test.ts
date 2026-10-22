@@ -1,0 +1,146 @@
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { testApp } from "./test-utils";
+
+let t: Awaited<ReturnType<typeof testApp>>;
+beforeEach(async () => {
+  t = await testApp();
+});
+afterEach(() => t.app.close());
+
+/** Starts a web login and returns the state and the cookie the browser would keep. */
+async function startWebLogin() {
+  const res = await t.app.inject({ method: "GET", url: "/api/auth/login" });
+  expect(res.statusCode).toBe(302);
+  const url = new URL(res.headers.location as string);
+  const cookie = res.cookies.find((c) => c.name === "epidle_login");
+  return {
+    url,
+    state: url.searchParams.get("state") as string,
+    loginCookie: cookie?.value as string,
+  };
+}
+
+const callback = (state: string, code: string, loginCookie?: string) =>
+  t.app.inject({
+    method: "GET",
+    url: `/api/auth/callback?${new URLSearchParams({ state, code })}`,
+    cookies: loginCookie ? { epidle_login: loginCookie } : {},
+  });
+
+describe("web login (authorization code + PKCE)", () => {
+  it("redirects to Microsoft with PKCE, then sets a session cookie", async () => {
+    const { url, state, loginCookie } = await startWebLogin();
+    expect(url.searchParams.get("code_challenge")).toMatch(/^[\w-]{43}$/);
+    expect(url.searchParams.get("redirect_uri")).toBe("http://localhost:5173/api/auth/callback");
+    t.fake.codes.set("good", "oid-alice");
+
+    const res = await callback(state, "good", loginCookie);
+    expect(res.statusCode).toBe(302);
+    expect(res.headers.location).toBe("http://localhost:5173/");
+    const session = res.cookies.find((c) => c.name === "epidle_session");
+    expect(session).toMatchObject({ httpOnly: true, sameSite: "Lax" });
+    expect(t.fake.nonces).toEqual([url.searchParams.get("nonce")]);
+
+    const me = await t.app.inject({
+      method: "GET",
+      url: "/api/me",
+      cookies: { epidle_session: session?.value ?? "" },
+    });
+    expect(me.json()).toEqual({ pseudo: null });
+    // Only the Microsoft object id is stored.
+    expect(t.db.prepare("SELECT * FROM users").all()).toEqual([
+      { id: 1, ms_oid: "oid-alice", pseudo: null, created_at: t.clock.t },
+    ]);
+  });
+
+  it("rejects a callback without the browser cookie (login CSRF) or with a reused state", async () => {
+    const { state } = await startWebLogin();
+    t.fake.codes.set("good", "oid-alice");
+    expect((await callback(state, "good")).headers.location).toContain("login=error");
+
+    const second = await startWebLogin();
+    t.fake.codes.set("good2", "oid-alice");
+    expect((await callback(second.state, "good2", second.loginCookie)).headers.location).toBe(
+      "http://localhost:5173/",
+    );
+    t.fake.codes.set("good3", "oid-alice");
+    const reused = await callback(second.state, "good3", second.loginCookie);
+    expect(reused.headers.location).toContain("login=error");
+  });
+
+  it("rejects an expired login and a code Microsoft refuses", async () => {
+    const a = await startWebLogin();
+    t.clock.t += 11 * 60_000;
+    t.fake.codes.set("good", "oid-alice");
+    expect((await callback(a.state, "good", a.loginCookie)).headers.location).toContain(
+      "login=error",
+    );
+    const b = await startWebLogin();
+    expect((await callback(b.state, "unknown", b.loginCookie)).headers.location).toContain(
+      "login=error",
+    );
+    expect(t.db.prepare("SELECT count(*) AS n FROM sessions").get()).toEqual({ n: 0 });
+  });
+});
+
+describe("CLI login (device code)", () => {
+  it("stays pending until approved, then returns a bearer token", async () => {
+    const start = (await t.app.inject({ method: "POST", url: "/api/auth/device" })).json();
+    expect(start).toMatchObject({
+      userCode: "CODE1",
+      verificationUri: "https://microsoft.com/devicelogin",
+    });
+    expect(JSON.stringify(start)).not.toContain("dc1"); // the Microsoft device code stays server side
+    const poll = () =>
+      t.app.inject({
+        method: "POST",
+        url: "/api/auth/device/token",
+        payload: { handle: start.handle },
+      });
+    expect((await poll()).json()).toMatchObject({ status: "pending" });
+    t.fake.approve("CODE1", "oid-bob");
+    const done = (await poll()).json();
+    expect(done.status).toBe("ok");
+    expect((await t.get(done.token, "/api/me")).json()).toEqual({ pseudo: null });
+    // The handle is single use.
+    expect((await poll()).statusCode).toBe(410);
+  });
+
+  it("reports denied logins and unknown handles", async () => {
+    const start = (await t.app.inject({ method: "POST", url: "/api/auth/device" })).json();
+    t.fake.setResult("CODE1", { status: "denied" });
+    const res = await t.app.inject({
+      method: "POST",
+      url: "/api/auth/device/token",
+      payload: { handle: start.handle },
+    });
+    expect(res.statusCode).toBe(403);
+    const unknown = await t.app.inject({
+      method: "POST",
+      url: "/api/auth/device/token",
+      payload: { handle: "nope" },
+    });
+    expect(unknown.statusCode).toBe(410);
+  });
+});
+
+describe("sessions", () => {
+  it("logout revokes the token", async () => {
+    const token = await t.login("oid-1");
+    expect((await t.get(token, "/api/me")).statusCode).toBe(200);
+    await t.app.inject({ method: "POST", url: "/api/auth/logout", headers: t.auth(token) });
+    expect((await t.get(token, "/api/me")).statusCode).toBe(401);
+  });
+
+  it("expire after 30 days", async () => {
+    const token = await t.login("oid-1");
+    t.clock.t += 31 * 24 * 3600 * 1000;
+    expect((await t.get(token, "/api/me")).statusCode).toBe(401);
+  });
+
+  it("logging in again with the same Microsoft account reuses the player", async () => {
+    await t.login("oid-1", "Alice");
+    const again = await t.login("oid-1");
+    expect((await t.get(again, "/api/me")).json()).toEqual({ pseudo: "Alice" });
+  });
+});

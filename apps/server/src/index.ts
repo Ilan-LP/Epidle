@@ -1,17 +1,32 @@
 import { fileURLToPath } from "node:url";
 import { buildApp } from "./app";
+import { loadConfig } from "./config";
+import { openDb } from "./db";
+import { createEntraProvider } from "./entra";
 
-const port = Number(process.env.PORT ?? 3000);
-const host = process.env.HOST ?? "127.0.0.1";
-const dbPath =
-  process.env.DATABASE_PATH ?? fileURLToPath(new URL("../data/epidle.db", import.meta.url));
+const config = loadConfig(
+  process.env,
+  fileURLToPath(new URL("../data/epidle.db", import.meta.url)),
+);
+const db = openDb(config.dbPath);
 
-const app = buildApp({ dbPath, logger: true });
+const app = await buildApp({
+  db,
+  provider: config.entra && createEntraProvider(config.entra),
+  publicUrl: config.publicUrl,
+  trustProxy: config.trustProxy,
+  maintenanceIntervalMs: 60_000,
+  logger: true,
+});
+if (!config.entra) app.log.warn("ENTRA_TENANT_ID / ENTRA_CLIENT_ID not set: login is disabled");
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.once(signal, () => {
-    void app.close().then(() => process.exit(0));
+    void app.close().then(() => {
+      db.close();
+      process.exit(0);
+    });
   });
 }
 
-await app.listen({ port, host });
+await app.listen({ port: config.port, host: config.host });

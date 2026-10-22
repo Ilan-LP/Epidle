@@ -36,8 +36,45 @@ pnpm --filter @epidle/web build      # production build in apps/web/dist
 |---|---|---|
 | `PORT` | server | `3000` |
 | `HOST` | server | `127.0.0.1` |
-| `DATABASE_PATH` | server | `apps/server/data/epidle.db` (created on first start) |
+| `DATABASE_PATH` | server | `apps/server/data/epidle.db` (created and migrated on start) |
+| `PUBLIC_URL` | server | `http://localhost:5173`, the origin players open; the login callback is `${PUBLIC_URL}/api/auth/callback` |
+| `ENTRA_TENANT_ID` | server | none, Epitech directory (tenant) id. Login is disabled until set |
+| `ENTRA_CLIENT_ID` | server | none, application (client) id of the Epidle app registration |
+| `ENTRA_CLIENT_SECRET` | server | none, only if the redirect URI is registered on the "Web" platform |
+| `TRUST_PROXY` | server | unset, `1` behind a reverse proxy so rate limits see real IPs |
 | `EPIDLE_SERVER_URL` | cli | `http://localhost:3000` |
+
+Server variables can go in `apps/server/.env` (loaded if present, see `apps/server/.env.example`).
+
+### Microsoft login (Entra ID)
+
+The server does the whole OIDC exchange: the web client gets an httpOnly session cookie, the CLI a bearer token. Microsoft tokens never reach the clients.
+
+App registration (Entra admin center > App registrations):
+
+1. Supported account types: this organizational directory only if registered in the Epitech tenant. A multi-tenant app registered elsewhere also works: the server only accepts tokens issued by `ENTRA_TENANT_ID`.
+2. Redirect URI: `${PUBLIC_URL}/api/auth/callback`, e.g. `http://localhost:5173/api/auth/callback` in dev.
+   - On the "Web" platform: create a client secret and set `ENTRA_CLIENT_SECRET`.
+   - On the "Mobile and desktop applications" platform: no secret.
+3. Authentication > Allow public client flows: **Yes** (needed by the device code flow of the CLI).
+4. API permissions: `openid` and `profile` only. We keep the `oid` claim, nothing else.
+
+### API
+
+All routes are under `/api`, JSON in and out, errors are `{ error, message }` with a French `message`.
+
+| Route | Auth | What |
+|---|---|---|
+| `GET /auth/login`, `GET /auth/callback` | none | Web login, authorization code + PKCE |
+| `POST /auth/device`, `POST /auth/device/token` | none | CLI login, device code; poll `token` with the returned `handle` until `status: "ok"` |
+| `POST /auth/logout` | session | Revokes the session |
+| `GET /me`, `PUT /me/pseudo` | session | Pseudo, 3-16 chars `[A-Za-z0-9_-]`, unique ignoring case, required to play |
+| `GET /state` | player | Company caught up to server time, season, rates |
+| `POST /intent` | player | `{ type, requestId, ... }`: `hire`, `train`, `buyRoom`, `buyMouli`, `upgradeMouli`, `setStrictness`. `count` (1-100) on repeatable ones. 422 when the game refuses, 409 on a reused `requestId` |
+| `GET /leaderboard?scope=season\|alltime` | player | Top 50 and my rank |
+| `GET /players/:pseudo/build` | player | Public build: team by kind and level, rooms, mouli stages and strictness. No money |
+
+Seasons roll over on the first request after the end and in a job that runs every minute.
 
 ## Balance simulation
 
@@ -55,6 +92,7 @@ pnpm lint        # Biome lint + format check
 pnpm format      # Biome format, writes files
 pnpm typecheck   # tsc on every package
 pnpm test        # Vitest on every package
+pnpm anticheat   # only the server anti-cheat suite (replays, forged values, unaffordable buys, spam)
 ```
 
 CI (`.github/workflows/ci.yml`) runs lint, typecheck and tests on pushes to `main` and on pull requests.
@@ -73,6 +111,9 @@ Every dependency needs a one-line justification. Add a row here when you add one
 | fastify | server | HTTP framework, good TS types, `inject` lets tests run without opening a port. |
 | better-sqlite3 | server | Embedded SQLite with a stable synchronous API. |
 | @types/better-sqlite3 | server dev | Types for better-sqlite3. |
+| jose | server | Verifies Microsoft id_token signatures against the rotating tenant JWKS, zero dependencies. |
+| @fastify/cookie | server | Reads and sets the httpOnly session cookie of the web client, official Fastify plugin. |
+| @fastify/rate-limit | server | Per-player and per-IP rate limits with standard headers, official Fastify plugin. |
 | react, react-dom | web | UI library. |
 | vite | web dev | Dev server and bundler. |
 | @vitejs/plugin-react | web dev | JSX transform and Fast Refresh. |

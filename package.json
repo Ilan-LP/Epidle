@@ -13,7 +13,8 @@
     "format": "biome format --write .",
     "typecheck": "pnpm -r typecheck",
     "test": "vitest run",
-    "sim": "pnpm --filter @epidle/sim start"
+    "sim": "pnpm --filter @epidle/sim start",
+    "anticheat": "vitest run apps/server/src/anti-cheat.test.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.6.2",
