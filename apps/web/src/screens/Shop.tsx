@@ -19,7 +19,7 @@ export function Shop({ p, act }: { p: Projection; act: Act }) {
   const [mode, setMode] = useState<Mode>(1);
   const offers = SHOP_SECTIONS.map((section) => ({
     title: section.title,
-    offers: section.rows.map((row) => offer(row, p.state, p.rates.netPerSecond, mode)),
+    offers: section.rows.map((row) => offer(row, p.state, p.rates.netPerSecond, mode, p.cfg)),
   }));
   const buy = (o: Offer) => {
     if (o.blocked === null) act(o.row.item.intent(o.count), `${o.row.name} x${o.count}`);

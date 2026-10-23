@@ -10,6 +10,7 @@ const SHORTCUTS: [string, string][] = [
   ["l", "langage suivant (cosmétique)"],
   ["q", "quitter (le jeu continue sans toi)"],
   ["e", "embaucher un junior (tableau)"],
+  ["y", "copier mon build pour Discord (tableau)"],
   ["←→ ↑↓", "dev à former et niveau cible (tableau)"],
   ["f", "lancer la formation choisie (tableau)"],
   ["1-4", "sévérité du stage n (tableau)"],

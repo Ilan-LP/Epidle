@@ -1,4 +1,4 @@
-import { BALANCE } from "@epidle/core";
+import { BALANCE, EFFECT_NAMES, type EffectName, type Effects } from "@epidle/core";
 
 // French number formatting for a monospace UI: short, stable widths, no locale surprises.
 
@@ -59,3 +59,26 @@ export function bar(ratio: number, width = 20): string {
 export const levelName = (level: number) => BALANCE.levels[level] ?? `niveau ${level}`;
 export const tierName = (tier: number) => BALANCE.tiers[tier]?.name ?? `palier ${tier}`;
 export const strictnessName = (level: number) => BALANCE.strictness[level]?.name ?? "?";
+
+const EFFECT_LABELS: Readonly<Record<EffectName, string>> = {
+  devSpeed: "vitesse des devs",
+  salary: "salaires",
+  trainingTime: "durée des formations",
+  trainingCost: "prix des formations",
+  hireCost: "prix des embauches",
+  roomCost: "prix des salles",
+  mouliCost: "prix des moulis",
+  mouliSpeed: "débit des moulis",
+  bugs: "bugs",
+  value: "valeur des LoC",
+};
+
+/** "vitesse des devs +50 %, bugs +40 %": the exact effects, whatever the description says. */
+export function effectsText(effects: Effects): string {
+  return EFFECT_NAMES.filter((name) => (effects[name] ?? 1) !== 1)
+    .map((name) => {
+      const pct = Math.round(((effects[name] ?? 1) - 1) * 100);
+      return `${EFFECT_LABELS[name]} ${pct > 0 ? "+" : ""}${pct} %`;
+    })
+    .join(", ");
+}

@@ -1,4 +1,4 @@
-import { formatMoney, type Scope } from "@epidle/api-client";
+import { feedText, feedTime, formatMoney, type Scope } from "@epidle/api-client";
 import { useState } from "react";
 import { api } from "../api";
 import { usePolled } from "../hooks";
@@ -19,7 +19,7 @@ export function Leaderboard({ me, onAuthLost }: { me: string; onAuthLost: () => 
 
   return (
     <div className="grid">
-      <Panel title={data ? `Classement · saison ${data.season.id}` : "Classement"} wide>
+      <Panel title={data ? `Classement · saison ${data.season.id}` : "Classement"}>
         <p>
           {SCOPES.map((s, i) => (
             <Btn
@@ -78,6 +78,63 @@ export function Leaderboard({ me, onAuthLost }: { me: string; onAuthLost: () => 
           </>
         )}
       </Panel>
+      <WeekFeed onAuthLost={onAuthLost} />
     </div>
+  );
+}
+
+/** What changed this week: what people talk about next to the ranking. */
+function WeekFeed({ onAuthLost }: { onAuthLost: () => void }) {
+  const { data, error } = usePolled(() => api.feed(), "feed", 30_000, onAuthLost);
+  const title = data
+    ? `Cette semaine${data.week.modifier ? ` · ${data.week.modifier.name}` : ""}`
+    : "Cette semaine";
+  return (
+    <Panel title={title}>
+      {error && <p className="bad">{error}</p>}
+      {!data && !error && <p className="dim">chargement…</p>}
+      {data && (
+        <>
+          <p className="dim">
+            {data.players} joueur{data.players > 1 ? "s" : ""} cette saison, {data.joined} arrivé
+            {data.joined > 1 ? "s" : ""} cette semaine.
+          </p>
+          {data.climbers.length > 0 && (
+            <>
+              <h3>Plus fortes progressions</h3>
+              <table className="table">
+                <tbody>
+                  {data.climbers.map((c, i) => (
+                    <tr key={c.pseudo}>
+                      <td className="num">{i + 1}</td>
+                      <td>
+                        <a href={href({ name: "player", pseudo: c.pseudo })}>{c.pseudo}</a>
+                      </td>
+                      <td className="num ok">+{formatMoney(c.gain)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
+          <h3>Fil</h3>
+          {data.events.length === 0 ? (
+            <p className="dim">
+              Rien pour l'instant. Les paliers, les premiers devs Lead et plus, et les changements
+              de tête s'affichent ici.
+            </p>
+          ) : (
+            <ul className="feed">
+              {data.events.map((e) => (
+                <li key={`${e.at}:${e.kind}:${e.pseudo}:${e.value}`}>
+                  <time dateTime={new Date(e.at).toISOString()}>{feedTime(e.at)}</time>
+                  {feedText(e)}
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+    </Panel>
   );
 }

@@ -36,7 +36,7 @@ export function Shop({
   const [cursor, setCursor] = useState(0);
   const sections = SHOP_SECTIONS.map((section) => ({
     title: section.title,
-    offers: section.rows.map((row) => offer(row, p.state, p.rates.netPerSecond, mode)),
+    offers: section.rows.map((row) => offer(row, p.state, p.rates.netPerSecond, mode, p.cfg)),
   }));
   const all = sections.flatMap((s) => s.offers);
   const buy = (o: Offer | undefined) => {

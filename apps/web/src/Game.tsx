@@ -1,10 +1,13 @@
 import {
+  currentWeek,
+  effectsText,
   formatDuration,
   formatMoney,
   formatRate,
   LANGUAGES,
   type Language,
   type LanguageId,
+  type Projection,
 } from "@epidle/api-client";
 import { type Game as GameData, useGame } from "./hooks";
 import { useShortcuts } from "./keys";
@@ -64,6 +67,7 @@ export function Game({ pseudo, lang, setLang, onAuthLost, onPseudo, onLogout }: 
         </nav>
       </Header>
       <StatusBar game={game} />
+      {game.projection && <WeekBanner p={game.projection} />}
       <main>
         <Screen
           route={route}
@@ -115,7 +119,7 @@ function Screen({
         <PlayerBuild pseudo={route.pseudo} me={pseudo} mine={p.state} onAuthLost={onAuthLost} />
       );
     default:
-      return <Dashboard p={p} act={game.act} lang={lang} />;
+      return <Dashboard p={p} act={game.act} say={game.say} lang={lang} pseudo={pseudo} />;
   }
 }
 
@@ -138,6 +142,31 @@ function StatusBar({ game }: { game: GameData }) {
           : `fin de saison dans ${formatDuration(p.seasonLeft)}`}
       </span>
       {game.error && <span className="bad">{game.error}</span>}
+    </div>
+  );
+}
+
+/** The weekly modifier, announced on every screen: it changes what is worth buying. */
+function WeekBanner({ p }: { p: Projection }) {
+  const w = currentWeek(p);
+  const label = `Semaine ${w.index + 1}/${w.count}`;
+  return (
+    <div className={w.modifier ? "week active" : "week"}>
+      {w.modifier ? (
+        <>
+          <strong className="accent">
+            {label} · {w.modifier.name}
+          </strong>{" "}
+          {w.modifier.description} <span className="dim">({effectsText(w.modifier.effects)})</span>
+        </>
+      ) : (
+        <span className="dim">{label} · semaine normale</span>
+      )}
+      <span className="dim">
+        {" "}
+        · fin dans {formatDuration(w.left)}
+        {w.next !== undefined && ` · ensuite : ${w.next?.name ?? "semaine normale"}`}
+      </span>
     </div>
   );
 }

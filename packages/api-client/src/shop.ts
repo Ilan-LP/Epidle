@@ -1,5 +1,6 @@
 import {
   BALANCE,
+  type Balance,
   buyMouli,
   buyRoom,
   cloneState,
@@ -26,41 +27,41 @@ import { affordableIn } from "./projection";
 export interface ShopItem {
   key: string;
   label: string;
-  /** Cost of the next purchase. */
-  price: (s: GameState) => number;
-  apply: (s: GameState) => IntentResult;
+  /** Cost of the next purchase, with the balance of the week. */
+  price: (s: GameState, cfg: Balance) => number;
+  apply: (s: GameState, cfg: Balance) => IntentResult;
   intent: (count: number) => Intent;
 }
 
 export const hireItem = (kind: HireKind): ShopItem => ({
   key: `hire:${kind}`,
   label: BALANCE.hire.kinds[kind].name,
-  price: (s) => hireCost(s, kind),
-  apply: (s) => hire(s, kind),
+  price: (s, cfg) => hireCost(s, kind, cfg),
+  apply: (s, cfg) => hire(s, kind, cfg),
   intent: (count) => ({ type: "hire", kind, count }),
 });
 
 export const roomItem: ShopItem = {
   key: "room",
   label: "Salle de formation",
-  price: roomCost,
-  apply: buyRoom,
+  price: (s, cfg) => roomCost(s, cfg),
+  apply: (s, cfg) => buyRoom(s, cfg),
   intent: (count) => ({ type: "buyRoom", count }),
 };
 
 export const mouliItem = (stage: StageId): ShopItem => ({
   key: `mouli:${stage}`,
   label: "+1 instance",
-  price: (s) => mouliCost(s, stage),
-  apply: (s) => buyMouli(s, stage),
+  price: (s, cfg) => mouliCost(s, stage, cfg),
+  apply: (s, cfg) => buyMouli(s, stage, cfg),
   intent: (count) => ({ type: "buyMouli", stage, count }),
 });
 
 export const upgradeItem = (stage: StageId): ShopItem => ({
   key: `upgrade:${stage}`,
   label: "version suivante",
-  price: (s) => mouliUpgradeCost(s, stage),
-  apply: (s) => upgradeMouli(s, stage),
+  price: (s, cfg) => mouliUpgradeCost(s, stage, cfg),
+  apply: (s, cfg) => upgradeMouli(s, stage, cfg),
   intent: (count) => ({ type: "upgradeMouli", stage, count }),
 });
 
@@ -73,15 +74,20 @@ export interface Quote {
 }
 
 /** Price of `count` purchases in a row, whatever the money. */
-export function quote(state: GameState, item: ShopItem, count: number): Quote {
+export function quote(
+  state: GameState,
+  item: ShopItem,
+  count: number,
+  cfg: Balance = BALANCE,
+): Quote {
   let s = state;
   let cost = 0;
   for (let i = 0; i < count; i++) {
-    const price = item.price(s);
+    const price = item.price(s, cfg);
     // Give exactly the price, so only non-money rules can refuse.
     const funded = cloneState(s);
     funded.money = price;
-    const r = item.apply(funded);
+    const r = item.apply(funded, cfg);
     if (!r.ok) return { count: i, cost, error: r.error };
     cost += price;
     s = r.state;
@@ -90,10 +96,15 @@ export function quote(state: GameState, item: ShopItem, count: number): Quote {
 }
 
 /** How many purchases the current money pays for, up to `max`. */
-export function maxAffordable(state: GameState, item: ShopItem, max: number): number {
+export function maxAffordable(
+  state: GameState,
+  item: ShopItem,
+  max: number,
+  cfg: Balance = BALANCE,
+): number {
   let s = state;
   for (let i = 0; i < max; i++) {
-    const r = item.apply(s);
+    const r = item.apply(s, cfg);
     if (!r.ok) return i;
     s = r.state;
   }
@@ -166,9 +177,15 @@ export interface Offer {
 }
 
 /** What `mode` buys of a row right now, and why not if it can't. */
-export function offer(row: ShopRow, state: GameState, net: number, mode: Mode): Offer {
-  const asked = mode === "max" ? Math.max(1, maxAffordable(state, row.item, MAX_COUNT)) : mode;
-  const q = quote(state, row.item, asked);
+export function offer(
+  row: ShopRow,
+  state: GameState,
+  net: number,
+  mode: Mode,
+  cfg: Balance,
+): Offer {
+  const asked = mode === "max" ? Math.max(1, maxAffordable(state, row.item, MAX_COUNT, cfg)) : mode;
+  const q = quote(state, row.item, asked, cfg);
   if (q.count === 0) {
     const error = q.error as IntentError | null;
     const blocked =

@@ -9,6 +9,7 @@ const SHORTCUTS: [string, string][] = [
   ["?", "aide"],
   ["l", "langage suivant (cosmétique)"],
   ["e", "embaucher un junior (tableau)"],
+  ["y", "copier mon build pour Discord (tableau)"],
   ["f", "lancer la formation choisie (tableau)"],
   ["1-4", "sévérité du stage n (tableau)"],
   ["1-8", "acheter la ligne n (boutique)"],
