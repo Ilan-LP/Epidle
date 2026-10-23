@@ -1,38 +1,44 @@
-import { GAME_NAME, type HealthResponse } from "@epidle/core";
-import { Box, render, Text, useApp } from "ink";
-import { useEffect, useState } from "react";
+import { createApi } from "@epidle/api-client";
+import { render } from "ink";
+import pkg from "../package.json" with { type: "json" };
+import { App } from "./App";
+import { parseCliArgs, USAGE } from "./args";
+import { ClientContext } from "./hooks";
+import { createStore, settingsPath } from "./store";
 
-const SERVER_URL = process.env.EPIDLE_SERVER_URL ?? "http://localhost:3000";
-
-type ServerStatus = "loading" | "online" | "offline";
-
-function App() {
-  const { exit } = useApp();
-  const [status, setStatus] = useState<ServerStatus>("loading");
-
-  useEffect(() => {
-    fetch(`${SERVER_URL}/api/health`)
-      .then((res) => (res.ok ? (res.json() as Promise<HealthResponse>) : Promise.reject()))
-      .then(() => setStatus("online"))
-      .catch(() => setStatus("offline"));
-  }, []);
-
-  useEffect(() => {
-    if (status !== "loading") {
-      exit();
-    }
-  }, [status, exit]);
-
-  return (
-    <Box flexDirection="column">
-      <Text bold>{GAME_NAME}</Text>
-      <Text>
-        Serveur : {status === "loading" && <Text color="yellow">connexion…</Text>}
-        {status === "online" && <Text color="green">en ligne</Text>}
-        {status === "offline" && <Text color="red">hors ligne ({SERVER_URL})</Text>}
-      </Text>
-    </Box>
-  );
+const args = parseCliArgs(process.argv.slice(2), process.env);
+if ("error" in args) {
+  console.error(`${args.error}\n\n${USAGE}`);
+  process.exit(2);
+}
+if (args.command === "help") {
+  console.log(USAGE);
+  process.exit(0);
+}
+if (args.command === "version") {
+  console.log(pkg.version);
+  process.exit(0);
 }
 
-render(<App />);
+const store = createStore(settingsPath(process.env), args.server);
+const api = createApi({ baseUrl: args.server, token: store.token });
+
+if (args.command === "logout") {
+  if (store.token()) await api.logout().catch(() => undefined);
+  store.setToken(null);
+  console.log(`Déconnecté de ${args.server}.`);
+  process.exit(0);
+}
+
+if (!process.stdin.isTTY || !process.stdout.isTTY) {
+  console.error("Epidle se joue dans un terminal interactif.");
+  process.exit(1);
+}
+
+const app = render(
+  <ClientContext.Provider value={{ api, store, server: args.server }}>
+    <App />
+  </ClientContext.Provider>,
+  { alternateScreen: true },
+);
+await app.waitUntilExit();
