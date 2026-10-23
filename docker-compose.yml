@@ -1,0 +1,47 @@
+# Production: docker compose up -d --build. See the runbook in README.md.
+# Settings come from .env next to this file (copy .env.example).
+services:
+  server:
+    build:
+      context: .
+      target: server
+    restart: unless-stopped
+    environment:
+      PUBLIC_URL: https://${EPIDLE_SITE:-localhost}
+      ENTRA_TENANT_ID: ${ENTRA_TENANT_ID:-}
+      ENTRA_CLIENT_ID: ${ENTRA_CLIENT_ID:-}
+      ENTRA_CLIENT_SECRET: ${ENTRA_CLIENT_SECRET:-}
+      BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-6}
+      BACKUP_KEEP: ${BACKUP_KEEP:-28}
+    volumes:
+      - data:/data
+      - backups:/backups
+      # Edit it without rebuilding, then restart: read at start, applies from the next season.
+      - ./apps/server/modifiers.json:/app/modifiers.json:ro
+    # Not published: only Caddy talks to it.
+    expose:
+      - "3000"
+
+  web:
+    build:
+      context: .
+      target: web
+    restart: unless-stopped
+    environment:
+      EPIDLE_SITE: ${EPIDLE_SITE:-localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      server:
+        condition: service_healthy
+
+volumes:
+  data:
+  backups:
+  caddy_data:
+  caddy_config:

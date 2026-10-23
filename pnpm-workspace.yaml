@@ -2,10 +2,10 @@ packages:
   - apps/*
   - packages/*
 
-# pnpm 10 blocks install scripts by default; better-sqlite3 needs its native binary.
-onlyBuiltDependencies:
-  - better-sqlite3
-
-# esbuild ships its binary as an optional platform package, the postinstall is not needed.
+# pnpm 10 blocks install scripts by default, and none is needed:
+# - esbuild ships its binary as an optional platform package, the postinstall is not needed.
+# - better-sqlite3 13 ships prebuilt binaries (linux, macOS, Windows, glibc and musl, x64 and
+#   arm64); building it would only compile a copy from source with node-gyp.
 ignoredBuiltDependencies:
+  - better-sqlite3
   - esbuild

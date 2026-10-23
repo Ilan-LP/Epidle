@@ -24,3 +24,12 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm --filter epidle build
+      - run: pnpm --filter @epidle/server build
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Both images of docker-compose.yml build, nothing is pushed.
+      - run: docker build --target server .
+      - run: docker build --target web .
