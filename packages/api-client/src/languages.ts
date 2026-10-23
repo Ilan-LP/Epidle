@@ -1,5 +1,5 @@
-// Purely cosmetic (CLAUDE.md): the language changes the scrolling code, the colors and the
-// prompt. It never touches the game.
+// Purely cosmetic (CLAUDE.md): the language changes the scrolling code, its colors and the
+// prompt. It never touches the game, and its colors stay inside the code snippets.
 
 export type LanguageId = "c" | "cpp" | "haskell" | "python" | "typescript" | "rust";
 
@@ -10,8 +10,8 @@ export interface Language {
   file: string;
   /** Prefix of the log lines. */
   prompt: string;
-  /** UI accent and keywords. */
-  accent: string;
+  /** Keywords in the code snippets: the only place the language colors reach. */
+  keyword: string;
   /** String literals. */
   string: string;
   comment: string;
@@ -25,7 +25,7 @@ export const LANGUAGES: readonly Language[] = [
     name: "C",
     file: "epidle.c",
     prompt: "$",
-    accent: "#5fd75f",
+    keyword: "#5fd75f",
     string: "#d7af5f",
     comment: "//",
     keywords: [
@@ -56,7 +56,7 @@ export const LANGUAGES: readonly Language[] = [
     name: "C++",
     file: "Epidle.cpp",
     prompt: "$",
-    accent: "#f06292",
+    keyword: "#f06292",
     string: "#a5d6a7",
     comment: "//",
     keywords: [
@@ -87,7 +87,7 @@ export const LANGUAGES: readonly Language[] = [
     name: "Haskell",
     file: "Epidle.hs",
     prompt: "ghci>",
-    accent: "#b39ddb",
+    keyword: "#b39ddb",
     string: "#ffcc80",
     comment: "--",
     keywords: [
@@ -118,7 +118,7 @@ export const LANGUAGES: readonly Language[] = [
     name: "Python",
     file: "epidle.py",
     prompt: ">>>",
-    accent: "#ffd43b",
+    keyword: "#ffd43b",
     string: "#7ec8e3",
     comment: "#",
     keywords: [
@@ -149,7 +149,7 @@ export const LANGUAGES: readonly Language[] = [
     name: "TypeScript",
     file: "epidle.ts",
     prompt: ">",
-    accent: "#4ea1ff",
+    keyword: "#4ea1ff",
     string: "#ce9178",
     comment: "//",
     keywords: [
@@ -179,7 +179,7 @@ export const LANGUAGES: readonly Language[] = [
     name: "Rust",
     file: "epidle.rs",
     prompt: "$",
-    accent: "#ff8c42",
+    keyword: "#ff8c42",
     string: "#9ccc65",
     comment: "//",
     keywords: [

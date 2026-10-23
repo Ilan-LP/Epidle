@@ -1,16 +1,9 @@
-/* Terminal look: one monospace font, text-driven layout, a single accent set by the language. */
+/* Terminal look: one monospace font, text-driven layout, Epitech colors. The color tokens
+   (--background, --primary...) come from packages/ui-theme, injected into index.html by
+   vite.config.ts. The cosmetic language only sets --code-keyword and --code-string. */
 
 :root {
   color-scheme: dark;
-  --bg: #0b0d0b;
-  --panel: #101310;
-  --fg: #cfd6cf;
-  --dim: #7b867b;
-  --line: #2b332b;
-  --accent: #5fd75f;
-  --string: #d7af5f;
-  --warn: #ffb454;
-  --bad: #ff6b6b;
   --font:
     ui-monospace, "Cascadia Mono", "JetBrains Mono", "SF Mono", Menlo, Consolas, "DejaVu Sans Mono",
     "Liberation Mono", monospace;
@@ -23,8 +16,8 @@
 html,
 body {
   margin: 0;
-  background: var(--bg);
-  color: var(--fg);
+  background: var(--background);
+  color: var(--text);
   font-family: var(--font);
   font-size: 14px;
   line-height: 1.45;
@@ -57,33 +50,36 @@ p {
 
 h3 {
   font-size: inherit;
-  color: var(--accent);
+  color: var(--primary);
   margin: 12px 0 4px;
 }
 
 a {
-  color: var(--accent);
+  color: var(--primary);
 }
 
 strong {
-  color: #fff;
+  color: var(--text);
   font-weight: 600;
 }
 
+.primary {
+  color: var(--primary);
+}
 .accent {
   color: var(--accent);
 }
 .dim {
-  color: var(--dim);
+  color: var(--muted);
 }
 .ok {
-  color: var(--accent);
+  color: var(--success);
 }
 .warn {
-  color: var(--warn);
+  color: var(--warning);
 }
 .bad {
-  color: var(--bad);
+  color: var(--danger);
 }
 .small {
   font-size: 12px;
@@ -92,7 +88,7 @@ strong {
 /* Header */
 
 .header {
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--border);
   padding-bottom: 6px;
 }
 
@@ -118,16 +114,16 @@ nav {
 select,
 input {
   font: inherit;
-  color: var(--fg);
-  background: var(--bg);
-  border: 1px solid var(--line);
+  color: var(--text);
+  background: var(--background);
+  border: 1px solid var(--border);
   padding: 2px 4px;
   max-width: 100%;
 }
 
 input {
   border: none;
-  border-bottom: 1px solid var(--accent);
+  border-bottom: 1px solid var(--primary);
   outline: none;
   width: 16ch;
 }
@@ -137,12 +133,12 @@ input {
   flex-wrap: wrap;
   gap: 2px 16px;
   padding: 6px 0;
-  border-bottom: 1px dashed var(--line);
+  border-bottom: 1px dashed var(--border);
 }
 
 .week {
   padding: 6px 0;
-  border-bottom: 1px dashed var(--line);
+  border-bottom: 1px dashed var(--border);
 }
 
 .week.active {
@@ -161,13 +157,13 @@ input {
 
 .key {
   font: inherit;
-  color: var(--string);
+  color: var(--accent);
   margin-right: 0.5ch;
 }
 
 .btn {
   font: inherit;
-  color: var(--accent);
+  color: var(--primary);
   background: none;
   border: none;
   padding: 2px 0;
@@ -178,27 +174,31 @@ input {
 
 .btn::before {
   content: "[";
-  color: var(--dim);
+  color: var(--muted);
 }
 
 .btn::after {
   content: "]";
-  color: var(--dim);
+  color: var(--muted);
 }
 
 .btn:hover:not(:disabled),
 .btn.active {
-  background: var(--accent);
-  color: var(--bg);
+  background: var(--brand);
+  color: var(--text);
 }
 
 .btn.active .key,
-.btn:hover:not(:disabled) .key {
-  color: var(--bg);
+.btn:hover:not(:disabled) .key,
+.btn.active::before,
+.btn.active::after,
+.btn:hover:not(:disabled)::before,
+.btn:hover:not(:disabled)::after {
+  color: var(--text);
 }
 
 .btn:disabled {
-  color: var(--dim);
+  color: var(--muted);
   cursor: not-allowed;
 }
 
@@ -208,7 +208,7 @@ input {
 }
 
 :focus-visible {
-  outline: 1px dashed var(--accent);
+  outline: 1px dashed var(--primary);
   outline-offset: 2px;
 }
 
@@ -231,8 +231,8 @@ input {
 
 .panel {
   position: relative;
-  border: 1px solid var(--line);
-  background: var(--panel);
+  border: 1px solid var(--border);
+  background: var(--surface);
   padding: 12px 10px 8px;
   margin-top: 16px;
   min-width: 0;
@@ -250,8 +250,8 @@ input {
   padding: 0 4px;
   font-size: inherit;
   font-weight: 600;
-  color: var(--accent);
-  background: var(--bg);
+  color: var(--primary);
+  background: var(--background);
   max-width: calc(100% - 16px);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -276,7 +276,7 @@ input {
 }
 
 .kv dt {
-  color: var(--dim);
+  color: var(--muted);
 }
 
 .kv dd {
@@ -285,15 +285,15 @@ input {
 
 .bar {
   white-space: pre;
-  color: var(--accent);
+  color: var(--primary);
   letter-spacing: 0;
 }
 
 .bar.warn {
-  color: var(--warn);
+  color: var(--warning);
 }
 .bar.bad {
-  color: var(--bad);
+  color: var(--danger);
 }
 
 .table {
@@ -310,12 +310,12 @@ input {
 }
 
 .table thead th {
-  color: var(--dim);
-  border-bottom: 1px dashed var(--line);
+  color: var(--muted);
+  border-bottom: 1px dashed var(--border);
 }
 
 .table tbody th {
-  color: var(--dim);
+  color: var(--muted);
 }
 
 .table .num {
@@ -323,7 +323,7 @@ input {
 }
 
 .table tr.me td {
-  color: var(--accent);
+  color: var(--primary);
   font-weight: 600;
 }
 
@@ -339,7 +339,7 @@ input {
 
 .list.bullets li::before {
   content: "- ";
-  color: var(--dim);
+  color: var(--muted);
 }
 
 .shop li {
@@ -356,7 +356,7 @@ input {
 }
 
 .stages li {
-  border-left: 2px solid var(--line);
+  border-left: 2px solid var(--border);
   padding-left: 8px;
 }
 
@@ -381,21 +381,22 @@ input {
 }
 
 .gutter {
-  color: var(--line);
+  color: var(--muted);
   user-select: none;
 }
 
+/* The cosmetic language layer: only these two colors change with it. */
 .tok-keyword {
-  color: var(--accent);
+  color: var(--code-keyword, var(--primary));
 }
 .tok-string {
-  color: var(--string);
+  color: var(--code-string, var(--success));
 }
 .tok-number {
-  color: var(--warn);
+  color: var(--warning);
 }
 .tok-comment {
-  color: var(--dim);
+  color: var(--muted);
   font-style: italic;
 }
 
@@ -404,8 +405,8 @@ input {
 .log {
   position: sticky;
   bottom: 0;
-  background: var(--bg);
-  border-top: 1px solid var(--line);
+  background: var(--background);
+  border-top: 1px solid var(--border);
   padding: 6px 0 10px;
   min-height: 3em;
   overflow-wrap: anywhere;
@@ -435,11 +436,18 @@ input {
 }
 
 .logo {
-  color: var(--accent);
+  color: var(--primary);
   margin: 0 0 16px;
   font: inherit;
   line-height: 1.15;
   overflow-x: auto;
+}
+
+/* Official Epitech logo, as downloaded from epitech.eu: never recolored or redrawn. */
+.made-for img {
+  height: 1.1em;
+  vertical-align: -0.15em;
+  margin-left: 0.5ch;
 }
 
 .prompt-line {
@@ -449,7 +457,7 @@ input {
 }
 
 .prompt-line label {
-  color: var(--accent);
+  color: var(--primary);
 }
 
 .feed {
@@ -463,6 +471,6 @@ input {
 }
 
 .feed time {
-  color: var(--dim);
+  color: var(--muted);
   margin-right: 1ch;
 }
