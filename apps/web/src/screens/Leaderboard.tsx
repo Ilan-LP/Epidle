@@ -1,4 +1,4 @@
-import { feedText, feedTime, formatMoney, type Scope } from "@epidle/api-client";
+import { effectsText, feedText, feedTime, formatMoney, type Scope } from "@epidle/api-client";
 import { useState } from "react";
 import { api } from "../api";
 import { usePolled } from "../hooks";
@@ -95,6 +95,12 @@ function WeekFeed({ onAuthLost }: { onAuthLost: () => void }) {
       {!data && !error && <p className="dim">chargement…</p>}
       {data && (
         <>
+          {data.week.modifier && (
+            <p>
+              {data.week.modifier.description}{" "}
+              <span className="dim">({effectsText(data.week.modifier.effects)})</span>
+            </p>
+          )}
           <p className="dim">
             {data.players} joueur{data.players > 1 ? "s" : ""} cette saison, {data.joined} arrivé
             {data.joined > 1 ? "s" : ""} cette semaine.

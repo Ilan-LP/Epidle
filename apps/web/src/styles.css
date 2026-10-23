@@ -150,6 +150,13 @@ input {
   border-bottom-color: var(--accent);
 }
 
+/* Phones: the effects are enough on every screen, the full text is in the weekly feed. */
+@media (max-width: 760px) {
+  .week .desc {
+    display: none;
+  }
+}
+
 /* Buttons look like [ text ] */
 
 .key {

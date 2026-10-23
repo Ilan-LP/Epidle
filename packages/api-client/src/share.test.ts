@@ -17,6 +17,7 @@ const state = (): GameState => {
     { id: 3, kind: "junior", level: 5, training: null },
   ];
   s.stages[0] = { instances: 12, version: 2, strictness: 2 };
+  s.stages[1] = { instances: 3, version: 0, strictness: 1 };
   return s;
 };
 
@@ -46,7 +47,7 @@ describe("shareText", () => {
     expect(lines[1]).toBe("Epidle · saison 3 · semaine 1/2 (Semaine Rush) · jour 4");
     expect(lines[2]).toBe("Minilan · #4 · Scale-up · 1,23 Md €");
     expect(lines[4]).toBe("Équipe  3 devs : 1 Lead, 2 Tek 4 (1 en formation)");
-    expect(lines[5]).toBe("Salles  6 · Moulis LoC x12 v3 Stricte");
+    expect(lines[5]).toBe("Salles  6 · Moulis LoC x12 v3 Stricte | Fichiers x3 v1 Normale");
     expect(lines.at(-2)).toBe("```");
     expect(lines.at(-1)).toBe("https://epidle.test/#/joueur/Minilan");
     expect(text).not.toMatch(/Argent|money/);

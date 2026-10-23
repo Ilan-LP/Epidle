@@ -157,7 +157,8 @@ function WeekBanner({ p }: { p: Projection }) {
           <strong className="accent">
             {label} · {w.modifier.name}
           </strong>{" "}
-          {w.modifier.description} <span className="dim">({effectsText(w.modifier.effects)})</span>
+          <span className="desc">{w.modifier.description} </span>
+          <span className="dim">({effectsText(w.modifier.effects)})</span>
         </>
       ) : (
         <span className="dim">{label} · semaine normale</span>

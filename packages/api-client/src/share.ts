@@ -25,6 +25,8 @@ export interface ShareInput {
 
 const MAX_GROUPS = 4;
 
+const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
 export function buildLink(webUrl: string, pseudo: string): string {
   return `${webUrl.replace(/\/+$/, "")}/#/joueur/${encodeURIComponent(pseudo)}`;
 }
@@ -60,7 +62,7 @@ export function shareText({ pseudo, p, rank, webUrl }: ShareInput): string {
     .filter(({ st }) => st && st.instances > 0)
     .map(
       ({ stage, st }) =>
-        `${stage.name.replace("Mouli ", "")} x${st?.instances} v${(st?.version ?? 0) + 1} ${strictnessName(st?.strictness ?? 0)}`,
+        `${capitalize(stage.name.replace("Mouli ", ""))} x${st?.instances} v${(st?.version ?? 0) + 1} ${strictnessName(st?.strictness ?? 0)}`,
     );
 
   return [

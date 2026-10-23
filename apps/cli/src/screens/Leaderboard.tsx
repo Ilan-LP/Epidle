@@ -1,6 +1,6 @@
-import { feedText, feedTime, formatMoney, type Scope } from "@epidle/api-client";
+import { effectsText, feedText, feedTime, formatMoney, type Scope } from "@epidle/api-client";
 import { usePolled } from "@epidle/api-client/react";
-import { Box, Text } from "ink";
+import { Box, Text, useWindowSize } from "ink";
 import { useState } from "react";
 import type { Navigate } from "../Game";
 import { useClient } from "../hooks";
@@ -32,6 +32,7 @@ export function Leaderboard({
   onAuthLost: () => void;
 }) {
   const { api } = useClient();
+  const { columns } = useWindowSize();
   const [scope, setScope] = useState<Scope>("season");
   const [cursor, setCursor] = useState(0);
   const { data, error } = usePolled(() => api.leaderboard(scope), scope, 30_000, onAuthLost);
@@ -127,37 +128,56 @@ export function Leaderboard({
       )}
     </Panel>
   );
-  // Narrow terminals: the feed goes below, PgDn reaches it.
+  // Narrow terminals: the feed goes below, PgDn reaches it. An explicit width: Ink measures
+  // wrapped text wrong in a growing box, and lines of the description got lost.
   return wide ? (
     <Box>
       {board}
-      <WeekFeed height={height} onAuthLost={onAuthLost} />
+      <WeekFeed height={height} width={columns - 2 - BOARD_WIDTH} onAuthLost={onAuthLost} />
     </Box>
   ) : (
     <>
       {board}
       <Text> </Text>
-      <WeekFeed height={height} onAuthLost={onAuthLost} />
+      <WeekFeed onAuthLost={onAuthLost} />
     </>
   );
 }
 
 /** What changed this week: what people talk about next to the ranking. */
-function WeekFeed({ height, onAuthLost }: { height: number; onAuthLost: () => void }) {
+/** `height`: fit the events in it (side by side). Without it, all of them (below, scrolling). */
+function WeekFeed({
+  height,
+  width,
+  onAuthLost,
+}: {
+  height?: number;
+  width?: number;
+  onAuthLost: () => void;
+}) {
   const { api } = useClient();
   const { data, error } = usePolled(() => api.feed(), "feed", 30_000, onAuthLost);
   const title = data?.week.modifier
     ? `Cette semaine · ${data.week.modifier.name}`
     : "Cette semaine";
   const climbers = data?.climbers ?? [];
-  // Title, summary, two headings and their spacing.
-  const room = Math.max(3, height - 6 - (climbers.length ? climbers.length + 1 : 0));
+  // Title, description (up to 3 lines), summary and the two headings.
+  const room =
+    height === undefined
+      ? undefined
+      : Math.max(3, height - 8 - (climbers.length ? climbers.length + 1 : 0));
   return (
-    <Panel title={title} grow>
+    <Panel title={title} width={width}>
       {error && <T tone="bad">{error}</T>}
       {!data && !error && <T tone="dim">chargement…</T>}
       {data && (
         <>
+          {data.week.modifier && (
+            <Text>
+              {data.week.modifier.description}{" "}
+              <T tone="dim">({effectsText(data.week.modifier.effects)})</T>
+            </Text>
+          )}
           <T tone="dim">
             {data.players} joueur{data.players > 1 ? "s" : ""} cette saison, {data.joined} arrivé
             {data.joined > 1 ? "s" : ""} cette semaine.
