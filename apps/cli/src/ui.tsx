@@ -5,42 +5,46 @@ import {
   type Language,
   type TokenKind,
 } from "@epidle/api-client";
+import type { TokenName } from "@epidle/ui-theme";
 import { Box, Text } from "ink";
 import { createContext, type ReactNode, useContext } from "react";
+import { color } from "./theme";
 
-// Terminal counterparts of the web components. Colors come from the cosmetic language.
+// Terminal counterparts of the web components. Colors are the theme tokens (./theme); the
+// cosmetic language only colors the code snippets.
 
 export const LanguageContext = createContext<Language>(DEFAULT_LANGUAGE);
 export const useLang = () => useContext(LanguageContext);
 
 export type Tone = "ok" | "warn" | "bad" | "dim";
-const TONE_COLORS: Record<Exclude<Tone, "dim">, string> = {
-  ok: "green",
-  warn: "yellow",
-  bad: "red",
+const TONE_TOKENS: Record<Tone, TokenName> = {
+  ok: "success",
+  warn: "warning",
+  bad: "danger",
+  // A gray color rather than ANSI dim, which some terminals ignore.
+  dim: "muted",
 };
 
-/** Text in a tone. "dim" is gray rather than ANSI dim, which some terminals ignore. */
+/** Text in a tone. */
 export function T({ tone, children, bold }: { tone?: Tone; children: ReactNode; bold?: boolean }) {
-  const color = tone === "dim" ? "gray" : tone ? TONE_COLORS[tone] : undefined;
   return (
-    <Text color={color} bold={bold}>
+    <Text color={tone && color(TONE_TOKENS[tone])} bold={bold}>
       {children}
     </Text>
   );
 }
 
-/** Accent-colored text. */
+/** Primary-colored text (Epitech blue). */
 export function A({ children, bold }: { children: ReactNode; bold?: boolean }) {
   return (
-    <Text color={useLang().accent} bold={bold}>
+    <Text color={color("primary")} bold={bold}>
       {children}
     </Text>
   );
 }
 
 /** Shortcut hint, e.g. [e]. */
-export const K = ({ k }: { k: string }) => <A>[{k}]</A>;
+export const K = ({ k }: { k: string }) => <Text color={color("accent")}>[{k}]</Text>;
 
 const RULE = "─".repeat(300);
 
@@ -64,8 +68,12 @@ export function Panel({
       flexShrink={0}
       paddingRight={1}
     >
-      <Text wrap="truncate" color={useLang().accent}>
-        ── <Text bold>{title}</Text> {RULE}
+      <Text wrap="truncate" color={color("border")}>
+        ──{" "}
+        <Text bold color={color("primary")}>
+          {title}
+        </Text>{" "}
+        {RULE}
       </Text>
       {children}
     </Box>
@@ -91,12 +99,13 @@ export function Code({ line }: { line: string }) {
   );
 }
 
+/** Keywords and strings are the cosmetic language layer, the rest follows the theme. */
 const TOKEN_COLORS: Record<TokenKind, (l: Language) => string | undefined> = {
   plain: () => undefined,
-  keyword: (l) => l.accent,
+  keyword: (l) => l.keyword,
   string: (l) => l.string,
-  number: () => "magenta",
-  comment: () => "gray",
+  number: () => color("warning"),
+  comment: () => color("muted"),
 };
 
 /** Pads to a fixed width for aligned columns, right-aligned for numbers. */

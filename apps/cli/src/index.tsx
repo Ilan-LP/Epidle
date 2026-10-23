@@ -5,6 +5,7 @@ import { App } from "./App";
 import { parseCliArgs, USAGE } from "./args";
 import { ClientContext } from "./hooks";
 import { createStore, settingsPath } from "./store";
+import { initColors } from "./theme";
 
 const args = parseCliArgs(process.argv.slice(2), process.env);
 if ("error" in args) {
@@ -35,6 +36,7 @@ if (!process.stdin.isTTY || !process.stdout.isTTY) {
   process.exit(1);
 }
 
+initColors(process.env);
 const app = render(
   <ClientContext.Provider value={{ api, store, server: args.server }}>
     <App />

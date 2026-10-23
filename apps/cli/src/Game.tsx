@@ -19,6 +19,7 @@ import { PlayerBuild } from "./screens/PlayerBuild";
 import { PseudoForm } from "./screens/PseudoForm";
 import { Share } from "./screens/Share";
 import { Shop } from "./screens/Shop";
+import { color } from "./theme";
 import { A, K, T, useLang } from "./ui";
 
 export type Route =
@@ -266,7 +267,7 @@ function Log({ game }: { game: GameData }) {
       borderBottom={false}
       borderLeft={false}
       borderRight={false}
-      borderColor="gray"
+      borderColor={color("border")}
     >
       {lines.length === 0 ? (
         <Text>
