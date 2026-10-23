@@ -1,106 +1,23 @@
 import {
-  affordableIn,
   formatDuration,
   formatMoney,
-  hireItem,
-  maxAffordable,
-  mouliItem,
+  MODES,
+  type Mode,
+  type Offer,
+  offer,
   type Projection,
-  quote,
-  roomItem,
-  type ShopItem,
-  upgradeItem,
+  SHOP_SECTIONS,
 } from "@epidle/api-client";
-import { BALANCE, type GameState, INTENT_ERROR_MESSAGES, type IntentError } from "@epidle/core";
+import { BALANCE } from "@epidle/core";
 import { useState } from "react";
 import type { Act } from "../hooks";
 import { useShortcuts } from "../keys";
 import { navigate } from "../router";
-import { Btn, Panel, tierName } from "../ui";
-
-const MODES = [1, 10, 100, "max"] as const;
-type Mode = (typeof MODES)[number];
-/** Server limit for one intent. */
-const MAX_COUNT = 100;
-
-interface Row {
-  hint: string;
-  item: ShopItem;
-  /** Shown in the log. */
-  name: string;
-  /** Tier required, to explain a lock. */
-  tier: number;
-}
-
-function rows(): { title: string; rows: Row[] }[] {
-  return [
-    {
-      title: "Recrutement",
-      rows: (["junior", "confirme", "senior"] as const).map((kind, i) => ({
-        hint: String(i + 1),
-        item: hireItem(kind),
-        name: `embauche ${BALANCE.hire.kinds[kind].name}`,
-        tier: BALANCE.hire.kinds[kind].tier,
-      })),
-    },
-    {
-      title: "Formation",
-      rows: [{ hint: "4", item: roomItem, name: "achat salle", tier: 0 }],
-    },
-    {
-      title: "Moulis",
-      rows: BALANCE.stages.flatMap((stage, i) => [
-        {
-          hint: String(i + 5),
-          item: { ...mouliItem(stage.id), label: `${stage.name} +1` },
-          name: `${stage.name} +1 instance`,
-          tier: stage.tier,
-        },
-        {
-          hint: `⇧${i + 5}`,
-          item: {
-            ...upgradeItem(stage.id),
-            label: `${stage.name} v+1 (débit x${BALANCE.mouliUpgrade.throughputFactor})`,
-          },
-          name: `${stage.name} version suivante`,
-          tier: stage.tier,
-        },
-      ]),
-    },
-  ];
-}
-
-const SECTIONS = rows();
-
-interface Offer {
-  row: Row;
-  count: number;
-  cost: number;
-  /** null when buyable now, else why not. */
-  blocked: string | null;
-  wait: number | null;
-}
-
-function offer(row: Row, state: GameState, net: number, mode: Mode): Offer {
-  const asked = mode === "max" ? Math.max(1, maxAffordable(state, row.item, MAX_COUNT)) : mode;
-  const q = quote(state, row.item, asked);
-  if (q.count === 0) {
-    const error = q.error as IntentError | null;
-    const blocked =
-      error === "locked"
-        ? `palier ${tierName(row.tier)}`
-        : error
-          ? INTENT_ERROR_MESSAGES[error]
-          : "?";
-    return { row, count: 0, cost: 0, blocked, wait: null };
-  }
-  const wait = affordableIn(q.cost, state.money, net);
-  return { row, count: q.count, cost: q.cost, blocked: wait === 0 ? null : "", wait };
-}
+import { Btn, Panel } from "../ui";
 
 export function Shop({ p, act }: { p: Projection; act: Act }) {
   const [mode, setMode] = useState<Mode>(1);
-  const offers = SECTIONS.map((section) => ({
+  const offers = SHOP_SECTIONS.map((section) => ({
     title: section.title,
     offers: section.rows.map((row) => offer(row, p.state, p.rates.netPerSecond, mode)),
   }));

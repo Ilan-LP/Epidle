@@ -4,5 +4,6 @@
 export * from "./api";
 export * from "./format";
 export * from "./languages";
+export * from "./logo";
 export * from "./projection";
 export * from "./shop";
