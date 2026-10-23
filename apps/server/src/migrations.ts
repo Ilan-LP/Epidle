@@ -55,6 +55,50 @@ export const MIGRATIONS: readonly string[] = [
   );
   CREATE INDEX intent_requests_created ON intent_requests(created_at);
   `,
+  `
+  -- Weekly modifiers of the season, copied from the config file when it opens.
+  ALTER TABLE seasons ADD COLUMN weeks TEXT NOT NULL DEFAULT '[]';
+  -- User ids of the top 10 at the last score refresh, to detect rank changes for the feed.
+  ALTER TABLE seasons ADD COLUMN top TEXT NOT NULL DEFAULT '[]';
+
+  -- Score at the start of the week the row was last saved in, for the "climbers of the week".
+  ALTER TABLE games ADD COLUMN week INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE games ADD COLUMN week_base REAL NOT NULL DEFAULT 0;
+  ALTER TABLE games ADD COLUMN joined_at INTEGER;
+
+  -- What happened this season: tiers, levels, rank changes. The pseudo is read at display time.
+  CREATE TABLE feed_events (
+    id INTEGER PRIMARY KEY,
+    season_id INTEGER NOT NULL REFERENCES seasons(id),
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    at INTEGER NOT NULL,
+    kind TEXT NOT NULL,
+    value INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE INDEX feed_events_season ON feed_events(season_id, at);
+  CREATE INDEX feed_events_user ON feed_events(user_id, kind, at);
+
+  -- Signs of scripting, for a human to review. Kept when the player is removed.
+  CREATE TABLE suspicious (
+    id INTEGER PRIMARY KEY,
+    at INTEGER NOT NULL,
+    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    pseudo TEXT,
+    ip TEXT,
+    kind TEXT NOT NULL,
+    detail TEXT NOT NULL DEFAULT ''
+  );
+  CREATE INDEX suspicious_at ON suspicious(at);
+
+  -- Removed players who may not log in again. Only the Microsoft object id, like users.
+  CREATE TABLE bans (
+    id INTEGER PRIMARY KEY,
+    ms_oid TEXT NOT NULL UNIQUE,
+    pseudo TEXT,
+    reason TEXT NOT NULL DEFAULT '',
+    at INTEGER NOT NULL
+  );
+  `,
 ];
 
 export function migrate(db: Db): void {

@@ -11,6 +11,7 @@ export const API_ERRORS = {
   auth_unavailable: "Connexion indisponible pour le moment.",
   login_expired: "La connexion a expiré, recommence.",
   login_denied: "Connexion refusée.",
+  banned: "Ce compte a été suspendu.",
   not_found: "Introuvable.",
   internal: "Erreur du serveur.",
 } as const;

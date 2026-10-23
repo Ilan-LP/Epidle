@@ -224,8 +224,8 @@ describe("request spam", () => {
   it("rate limits every endpoint, logged in or not", async () => {
     const codes: number[] = [];
     for (let i = 0; i < 310; i++) codes.push((await t.get(token, "/api/me")).statusCode);
-    // 300 per minute, beforeEach already used one.
-    expect(codes.filter((c) => c === 429)).toHaveLength(11);
+    // 300 per minute. Routes with their own limit (the state in beforeEach) have their own count.
+    expect(codes.filter((c) => c === 429)).toHaveLength(10);
     const anon = await Promise.all(
       Array.from({ length: 130 }, () => t.app.inject({ method: "POST", url: "/api/auth/device" })),
     );

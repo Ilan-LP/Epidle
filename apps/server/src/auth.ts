@@ -69,6 +69,10 @@ export function upsertUser(db: Db, identity: Identity, now: number): number {
   return row.id;
 }
 
+/** Removed with --ban by an admin: may not log in again. */
+export const isBanned = (db: Db, identity: Identity): boolean =>
+  !!db.prepare("SELECT 1 FROM bans WHERE ms_oid = ?").get(identity.oid);
+
 function sessionToken(request: FastifyRequest): string | null {
   const header = request.headers.authorization;
   if (header?.startsWith("Bearer ")) return header.slice(7).trim() || null;
@@ -161,6 +165,7 @@ export function registerAuth(app: FastifyInstance, { db, provider, publicUrl, no
           nonce: String(pending.nonce),
           redirectUri,
         });
+        if (isBanned(db, identity)) return fail();
         setSessionCookie(reply, createSession(db, upsertUser(db, identity, now()), now()));
         return reply.redirect(`${publicUrl}/`);
       } catch (e) {
@@ -237,6 +242,7 @@ export function registerAuth(app: FastifyInstance, { db, provider, publicUrl, no
       db.prepare("DELETE FROM auth_requests WHERE id = ?").run(handle);
       if (result.status === "denied") return sendError(reply, 403, "login_denied");
       if (result.status === "expired") return sendError(reply, 410, "login_expired");
+      if (isBanned(db, result.identity)) return sendError(reply, 403, "banned");
       return {
         status: "ok",
         token: createSession(db, upsertUser(db, result.identity, now()), now()),
