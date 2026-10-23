@@ -1,0 +1,8 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // Shared by the browser, the terminal and the Vite config: plain data, no runtime globals.
+    "types": []
+  },
+  "include": ["src"]
+}

@@ -11,6 +11,8 @@
     "isolatedModules": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
-    "noEmit": true
+    "noEmit": true,
+    // packages/ui-theme uses explicit .ts imports: plain Node (Vite's config loader) runs it as is.
+    "allowImportingTsExtensions": true
   }
 }

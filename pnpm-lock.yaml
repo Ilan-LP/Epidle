@@ -26,6 +26,9 @@ importers:
 
   apps/cli:
     dependencies:
+      chalk:
+        specifier: ^6.0.1
+        version: 6.0.1
       ink:
         specifier: ^8.0.0
         version: 8.0.0(@types/react@19.3.0)(react@19.3.1)
@@ -39,6 +42,9 @@ importers:
       '@epidle/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@epidle/ui-theme':
+        specifier: workspace:*
+        version: link:../../packages/ui-theme
       '@types/react':
         specifier: ^19.3.0
         version: 19.3.0
@@ -89,6 +95,9 @@ importers:
         specifier: ^19.3.1
         version: 19.3.1(react@19.3.1)
     devDependencies:
+      '@epidle/ui-theme':
+        specifier: workspace:*
+        version: link:../../packages/ui-theme
       '@types/react':
         specifier: ^19.3.0
         version: 19.3.0
@@ -108,6 +117,9 @@ importers:
         specifier: workspace:*
         version: link:../core
     devDependencies:
+      '@epidle/ui-theme':
+        specifier: workspace:*
+        version: link:../ui-theme
       '@types/react':
         specifier: ^19.3.0
         version: 19.3.0
@@ -122,6 +134,8 @@ importers:
       '@epidle/core':
         specifier: workspace:*
         version: link:../core
+
+  packages/ui-theme: {}
 
 packages:
 
