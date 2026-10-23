@@ -1,7 +1,7 @@
+import { type PlayerBuild as Build, formatMoney } from "@epidle/api-client";
 import { BALANCE, type GameState } from "@epidle/core";
 import { useState } from "react";
-import { api, type PlayerBuild as Build } from "../api";
-import { formatMoney } from "../format";
+import { api } from "../api";
 import { usePolled } from "../hooks";
 import { useShortcuts } from "../keys";
 import { navigate } from "../router";

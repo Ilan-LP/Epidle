@@ -7,6 +7,8 @@ import {
   type HireKind,
   hire,
   hireCost,
+  INTENT_ERROR_MESSAGES,
+  type IntentError,
   type IntentResult,
   mouliCost,
   mouliUpgradeCost,
@@ -15,6 +17,8 @@ import {
   upgradeMouli,
 } from "@epidle/core";
 import type { Intent } from "./api";
+import { tierName } from "./format";
+import { affordableIn } from "./projection";
 
 // Bulk prices are computed by running the core intents, so the shop shows exactly what the
 // server will charge for "x10" (each purchase makes the next one more expensive).
@@ -94,4 +98,87 @@ export function maxAffordable(state: GameState, item: ShopItem, max: number): nu
     s = r.state;
   }
   return max;
+}
+
+export const MODES = [1, 10, 100, "max"] as const;
+export type Mode = (typeof MODES)[number];
+/** Server limit for one intent. */
+export const MAX_COUNT = 100;
+
+export interface ShopRow {
+  /** Web shortcut, "⇧5" for Shift+5. */
+  hint: string;
+  item: ShopItem;
+  /** Shown in the log. */
+  name: string;
+  /** Tier required, to explain a lock. */
+  tier: number;
+}
+
+function sections(): { title: string; rows: ShopRow[] }[] {
+  return [
+    {
+      title: "Recrutement",
+      rows: (["junior", "confirme", "senior"] as const).map((kind, i) => ({
+        hint: String(i + 1),
+        item: hireItem(kind),
+        name: `embauche ${BALANCE.hire.kinds[kind].name}`,
+        tier: BALANCE.hire.kinds[kind].tier,
+      })),
+    },
+    {
+      title: "Formation",
+      rows: [{ hint: "4", item: roomItem, name: "achat salle", tier: 0 }],
+    },
+    {
+      title: "Moulis",
+      rows: BALANCE.stages.flatMap((stage, i) => [
+        {
+          hint: String(i + 5),
+          item: { ...mouliItem(stage.id), label: `${stage.name} +1` },
+          name: `${stage.name} +1 instance`,
+          tier: stage.tier,
+        },
+        {
+          hint: `⇧${i + 5}`,
+          item: {
+            ...upgradeItem(stage.id),
+            label: `${stage.name} v+1 (débit x${BALANCE.mouliUpgrade.throughputFactor})`,
+          },
+          name: `${stage.name} version suivante`,
+          tier: stage.tier,
+        },
+      ]),
+    },
+  ];
+}
+
+/** The shop catalogue, in display order. Hints are the web shortcuts (⇧ = Shift). */
+export const SHOP_SECTIONS = sections();
+
+export interface Offer {
+  row: ShopRow;
+  count: number;
+  cost: number;
+  /** null when buyable now, else why not. */
+  blocked: string | null;
+  wait: number | null;
+}
+
+/** What `mode` buys of a row right now, and why not if it can't. */
+export function offer(row: ShopRow, state: GameState, net: number, mode: Mode): Offer {
+  const asked = mode === "max" ? Math.max(1, maxAffordable(state, row.item, MAX_COUNT)) : mode;
+  const q = quote(state, row.item, asked);
+  if (q.count === 0) {
+    const error = q.error as IntentError | null;
+    const blocked =
+      error === "locked"
+        ? `palier ${tierName(row.tier)}`
+        : error
+          ? INTENT_ERROR_MESSAGES[error]
+          : "?";
+    return { row, count: 0, cost: 0, blocked, wait: null };
+  }
+  const wait = affordableIn(q.cost, state.money, net);
+  return { row, count: q.count, cost: q.cost, blocked: wait === 0 ? null : "", wait };
 }

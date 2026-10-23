@@ -1,5 +1,5 @@
+import { LANGUAGES, type Language, type LanguageId } from "@epidle/api-client";
 import type { ReactNode } from "react";
-import { LANGUAGES, type Language, type LanguageId } from "./languages";
 
 export function Header({
   lang,

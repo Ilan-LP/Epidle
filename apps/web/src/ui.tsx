@@ -1,7 +1,5 @@
-import { BALANCE } from "@epidle/core";
+import { bar, formatPercent, highlight, type Language } from "@epidle/api-client";
 import type { ReactNode } from "react";
-import { bar, formatPercent } from "./format";
-import { highlight, type Language } from "./languages";
 
 export function Panel({
   title,
@@ -64,6 +62,8 @@ export function Btn({
   );
 }
 
+export { levelName, strictnessName, tierName } from "@epidle/api-client";
+
 export function Code({ line, lang }: { line: string; lang: Language }) {
   return (
     <>
@@ -77,7 +77,3 @@ export function Code({ line, lang }: { line: string; lang: Language }) {
     </>
   );
 }
-
-export const levelName = (level: number) => BALANCE.levels[level] ?? `niveau ${level}`;
-export const tierName = (tier: number) => BALANCE.tiers[tier]?.name ?? `palier ${tier}`;
-export const strictnessName = (level: number) => BALANCE.strictness[level]?.name ?? "?";

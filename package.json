@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "pnpm --filter @epidle/server --filter @epidle/web --parallel dev",
-    "cli": "pnpm --filter @epidle/cli start",
+    "cli": "pnpm --filter epidle start",
     "lint": "biome check .",
     "format": "biome format --write .",
     "typecheck": "pnpm -r typecheck",

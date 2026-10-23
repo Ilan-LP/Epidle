@@ -1,11 +1,5 @@
+import { LOGO } from "@epidle/api-client";
 import { GAME_NAME } from "@epidle/core";
-
-export const LOGO = String.raw` _____       _     _ _
-| ____|_ __ (_) __| | | ___
-|  _| | '_ \| |/ _' | |/ _ \
-| |___| |_) | | (_| | |  __/
-|_____| .__/|_|\__,_|_|\___|
-      |_|`;
 
 export function Login({ error }: { error: boolean }) {
   return (

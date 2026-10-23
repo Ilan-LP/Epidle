@@ -17,7 +17,7 @@ pnpm install
 
 ```sh
 pnpm dev   # server on http://localhost:3000 + web client on http://localhost:5173
-pnpm cli   # terminal client, needs the server running
+pnpm cli   # terminal client from source, needs the server running
 ```
 
 The web client proxies `/api` to the server, so open http://localhost:5173. Logging in needs the Entra settings below; without them the login page shows but the Microsoft redirect fails.
@@ -28,6 +28,8 @@ Run a single app:
 pnpm --filter @epidle/server dev     # server with reload on change
 pnpm --filter @epidle/web dev        # web client only
 pnpm --filter @epidle/web build      # production build in apps/web/dist
+pnpm cli --server http://localhost:3000     # CLI flags pass through
+pnpm --filter epidle build           # bundles the CLI into apps/cli/dist/epidle.js
 ```
 
 ### Configuration (environment variables)
@@ -42,7 +44,8 @@ pnpm --filter @epidle/web build      # production build in apps/web/dist
 | `ENTRA_CLIENT_ID` | server | none, application (client) id of the Epidle app registration |
 | `ENTRA_CLIENT_SECRET` | server | none, only if the redirect URI is registered on the "Web" platform |
 | `TRUST_PROXY` | server | unset, `1` behind a reverse proxy so rate limits see real IPs |
-| `EPIDLE_SERVER_URL` | cli | `http://localhost:3000` |
+| `EPIDLE_SERVER_URL` | cli | `http://localhost:3000`, overridden by `--server`. https only, except localhost |
+| `EPIDLE_CONFIG` | cli | `~/.config/epidle/config.json` (`%APPDATA%\epidle` on Windows): session tokens and language |
 
 Server variables can go in `apps/server/.env` (loaded if present, see `apps/server/.env.example`).
 
@@ -85,6 +88,20 @@ Terminal look, French UI, works from 360 px wide. Screens: login, pseudo, dashbo
 - **Shortcuts:** `t` dashboard, `b` shop, `c` leaderboard, `?` help, `l` next language, `e` hire a junior, `f` start the chosen training, `1-4` stage strictness, shop `1-8` buy and `Shift+5-8` upgrade, `x` quantity, `v` leaderboard scope, `Esc` back. Digits use the physical key, so they work on AZERTY.
 - **Language** (C, C++, Haskell, Python, TypeScript, Rust) only changes the scrolling code, the colors and the prompt. Saved in `localStorage`.
 
+### Terminal client
+
+```sh
+npx epidle                      # once published on npm
+npx epidle --server https://…   # another server
+npx epidle --logout             # revoke and forget the session
+```
+
+Same screens and rules as the web client, in Ink, fully keyboard driven. Shares `@epidle/api-client` (API calls, projection, shop quotes, formatting, languages, and the polling hooks) with the web client.
+
+- **Login:** device code flow. The CLI shows a Microsoft URL and a code (`o` opens the browser), and polls the server until the player has logged in. The session token is saved per server in `EPIDLE_CONFIG`, readable by its owner only (0600).
+- **Shortcuts:** same as the web (`t b c ? l`, `e f 1-4`, shop `1-8 x`, `v`, `Esc`), plus `q` quit, arrows to pick the dev and the target level of a training, `↑↓ Enter` to buy any shop line or open a player's build, `Tab` to switch between company and pipeline on terminals under 110 columns, `PgUp/PgDn` to scroll small terminals. The AZERTY digit row works without Shift.
+- **Publishing:** set `DEFAULT_SERVER_URL` in `apps/cli/src/args.ts` to the production URL, then `npm publish` from `apps/cli` (`prepack` builds the bundle). Only `dist/epidle.js` ships: the workspace packages are bundled in, `ink` and `react` are regular dependencies.
+
 ## Balance simulation
 
 ```sh
@@ -104,7 +121,7 @@ pnpm test        # Vitest on every package
 pnpm anticheat   # only the server anti-cheat suite (replays, forged values, unaffordable buys, spam)
 ```
 
-CI (`.github/workflows/ci.yml`) runs lint, typecheck and tests on pushes to `main` and on pull requests.
+CI (`.github/workflows/ci.yml`) runs lint, typecheck, tests and the CLI bundle on pushes to `main` and on pull requests.
 
 ## Dependencies
 
@@ -130,17 +147,20 @@ Every dependency needs a one-line justification. Add a row here when you add one
 | ink | cli | React renderer for the terminal. |
 | react | cli | Peer dependency of Ink. |
 | @types/react | cli dev | React types for the Ink components. |
+| esbuild | cli dev | Bundles the CLI and the workspace TS packages into one JS file for npm. Already installed by Vite and tsx. |
+| react, @types/react | api-client peer, dev | The shared hooks run in both React renderers (react-dom and Ink). |
 
 ## Layout
 
 ```
-packages/core   @epidle/core    pure, deterministic game logic shared by everyone
-packages/sim    @epidle/sim     headless balance simulation with greedy bots
-apps/server     @epidle/server  Fastify + SQLite, authoritative game server
-apps/web        @epidle/web     React + Vite client
-apps/cli        @epidle/cli     Ink terminal client
+packages/core        @epidle/core        pure, deterministic game logic shared by everyone
+packages/sim         @epidle/sim         headless balance simulation with greedy bots
+packages/api-client  @epidle/api-client  what both clients share: API calls, projection, shop quotes, formatting, languages, hooks (./react)
+apps/server          @epidle/server      Fastify + SQLite, authoritative game server
+apps/web             @epidle/web         React + Vite client
+apps/cli             epidle              Ink terminal client, published to npm as `epidle`
 ```
 
 `packages/core` must stay pure: no IO, no clock, no timers. Tooling enforces it: no Node types in its tsconfig, and Biome rejects `Date`, `process`, `fetch`, `setTimeout`, `console`... in that folder.
 
-No package is compiled: server and CLI run through `tsx`, the web client through Vite, and `@epidle/core` is imported as TypeScript source.
+No package is compiled for development: server and CLI run through `tsx`, the web client through Vite, and the workspace packages are imported as TypeScript source. The only builds are the web bundle and the CLI bundle for npm.
