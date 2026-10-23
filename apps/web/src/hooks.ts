@@ -37,13 +37,16 @@ function readStorage(key: string): string | null {
   }
 }
 
-/** Cosmetic preference, so local to the browser. Applies the colors as CSS variables. */
+/**
+ * Cosmetic preference, so local to the browser. Its colors only reach the code snippets
+ * (--code-keyword, --code-string): the rest of the UI keeps the Epitech theme.
+ */
 export function useLanguage(): [Language, (id: LanguageId) => void] {
   const [lang, setLang] = useState(() => languageById(readStorage(LANGUAGE_KEY)));
   useEffect(() => {
     const root = document.documentElement.style;
-    root.setProperty("--accent", lang.accent);
-    root.setProperty("--string", lang.string);
+    root.setProperty("--code-keyword", lang.keyword);
+    root.setProperty("--code-string", lang.string);
     try {
       localStorage.setItem(LANGUAGE_KEY, lang.id);
     } catch {

@@ -16,7 +16,7 @@ export function Header({
     <header className="header">
       <div className="titlebar">
         <span className="title">
-          <span className="accent">{lang.file}</span>
+          <span className="primary">{lang.file}</span>
           {pseudo && <span className="dim"> · {pseudo}</span>}
         </span>
         <label className="lang">

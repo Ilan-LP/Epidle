@@ -11,6 +11,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/core/package.json packages/core/
 COPY packages/sim/package.json packages/sim/
 COPY packages/api-client/package.json packages/api-client/
+COPY packages/ui-theme/package.json packages/ui-theme/
 COPY apps/server/package.json apps/server/
 COPY apps/web/package.json apps/web/
 COPY apps/cli/package.json apps/cli/

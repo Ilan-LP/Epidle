@@ -1,5 +1,6 @@
 import { LOGO } from "@epidle/api-client";
 import { GAME_NAME } from "@epidle/core";
+import epitechLogo from "../assets/epitech-logo-white.svg";
 
 export function Login({ error }: { error: boolean }) {
   return (
@@ -7,6 +8,9 @@ export function Login({ error }: { error: boolean }) {
       <pre className="logo" role="img" aria-label={GAME_NAME}>
         {LOGO}
       </pre>
+      <p className="made-for dim">
+        pour les étudiants <img src={epitechLogo} alt="Epitech" />
+      </p>
       <p>Monte ta boîte de dev. Forme tes juniors, règle tes moulis, livre du code propre.</p>
       <p>Le meilleur CA de la saison gagne.</p>
       {error && <p className="bad">La connexion a échoué, réessaie.</p>}

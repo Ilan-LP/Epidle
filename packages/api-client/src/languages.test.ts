@@ -1,3 +1,4 @@
+import { contrast, THEME } from "@epidle/ui-theme";
 import { describe, expect, it } from "vitest";
 import { codeLines, DEFAULT_LANGUAGE, highlight, LANGUAGES, languageById } from "./languages";
 
@@ -6,7 +7,15 @@ const lang = (id: string) => languageById(id);
 describe("languages", () => {
   it("all have code and distinct colors", () => {
     for (const l of LANGUAGES) expect(codeLines(l).length).toBeGreaterThan(5);
-    expect(new Set(LANGUAGES.map((l) => l.accent)).size).toBe(LANGUAGES.length);
+    expect(new Set(LANGUAGES.map((l) => l.keyword)).size).toBe(LANGUAGES.length);
+  });
+
+  it("keep their snippet colors readable on the theme panels (WCAG AA)", () => {
+    for (const l of LANGUAGES) {
+      for (const color of [l.keyword, l.string]) {
+        expect(contrast(color, THEME.surface.hex)).toBeGreaterThanOrEqual(4.5);
+      }
+    }
   });
 
   it("falls back to the default language", () => {

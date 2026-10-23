@@ -117,7 +117,7 @@ Terminal look, French UI, works from 360 px wide. Screens: login, pseudo, dashbo
 - **Live updates:** `GET /state` on load, every 15 s while the tab is visible, when it becomes visible again, and at the end of the season. In between, the last server response is advanced locally with `advanceSeason()` from `@epidle/core` (the balance of each week), 4 times per second. Every intent response replaces it.
 - **Nothing is computed for the server:** the client sends intents only. It runs the same core rules locally to show prices (x10 included), "affordable in", and to explain a refused action without sending it.
 - **Shortcuts:** `t` dashboard, `b` shop, `c` leaderboard, `?` help, `l` next language, `y` copy my build, `e` hire a junior, `f` start the chosen training, `1-4` stage strictness, shop `1-8` buy and `Shift+5-8` upgrade, `x` quantity, `v` leaderboard scope, `Esc` back. Digits use the physical key, so they work on AZERTY.
-- **Language** (C, C++, Haskell, Python, TypeScript, Rust) only changes the scrolling code, the colors and the prompt. Saved in `localStorage`.
+- **Language** (C, C++, Haskell, Python, TypeScript, Rust) only changes the scrolling code, its colors and the prompt. Saved in `localStorage`.
 
 ### Terminal client
 
@@ -131,7 +131,27 @@ Same screens and rules as the web client, in Ink, fully keyboard driven. Shares 
 
 - **Login:** device code flow. The CLI shows a Microsoft URL and a code (`o` opens the browser), and polls the server until the player has logged in. The session token is saved per server in `EPIDLE_CONFIG`, readable by its owner only (0600).
 - **Shortcuts:** same as the web (`t b c ? l`, `y e f 1-4`, shop `1-8 x`, `v`, `Esc`), plus `q` quit, arrows to pick the dev and the target level of a training, `↑↓ Enter` to buy any shop line or open a player's build, `Tab` to switch between company and pipeline on terminals under 110 columns, `PgUp/PgDn` to scroll small terminals. The AZERTY digit row works without Shift.
-- **Publishing:** set `DEFAULT_SERVER_URL` in `apps/cli/src/args.ts` to the production URL, then `npm publish` from `apps/cli` (`prepack` builds the bundle). Only `dist/epidle.js` ships: the workspace packages are bundled in, `ink` and `react` are regular dependencies.
+- **Publishing:** set `DEFAULT_SERVER_URL` in `apps/cli/src/args.ts` to the production URL, then `npm publish` from `apps/cli` (`prepack` builds the bundle). Only `dist/epidle.js` ships: the workspace packages are bundled in, `ink`, `react` and `chalk` are regular dependencies.
+
+## Theming
+
+Both clients use the Epitech colors from one file: `packages/ui-theme/src/tokens.ts`. Official values come from the epitech.eu palette (blue `#013AFB`, black `#181818`, white `#F2F4F8`, accents `#00FF97` `#FF5A3A` `#FF1EF7`); the others are derived and marked as such.
+
+| Token | Use |
+|---|---|
+| `background`, `surface` | page and panels |
+| `border` | panel borders and separators |
+| `text`, `muted` | main and secondary text |
+| `brand` | the exact Epitech blue, only as a fill behind `text` (active buttons) |
+| `primary` | the Epitech blue lightened for text: headings, links, active items |
+| `accent` | shortcut keys, weekly modifier |
+| `success`, `warning`, `danger` | money, bottlenecks, bugs (always next to a label or a number) |
+
+- **Web:** `apps/web/vite.config.ts` injects the tokens as CSS variables (`--primary`...) into `index.html`, with `theme-color` and the favicon. `styles.css` only uses `var(--token)`: no color literal anywhere else.
+- **Terminal:** `apps/cli/src/theme.ts` turns a token into an Ink color for what the terminal supports: the exact hex in truecolor, the nearest of 256 colors, then a hand-picked ANSI 16 name (`ansi16` in the token). `NO_COLOR` disables colors, `FORCE_COLOR=1|2|3` forces a level. The terminal background is never painted.
+- **Language layer:** the cosmetic language only colors keywords and strings of the code snippets (`--code-keyword`, `--code-string` on the web, `Code` in the CLI), on top of the theme.
+- **Changing a color:** edit `tokens.ts`, run `pnpm test`. `tokens.test.ts` checks WCAG AA (4.5:1 for every text token on `background` and `surface`, 3:1 for `border`, `text` on `brand`), and `languages.test.ts` checks the language colors on `surface`.
+- **Logo:** the login screen shows a text wordmark and the official white Epitech logo (`apps/web/src/assets`, from epitech.eu, never redrawn or recolored).
 
 ## Balance simulation
 
@@ -207,6 +227,7 @@ Every dependency needs a one-line justification. Add a row here when you add one
 | @vitejs/plugin-react | web dev | JSX transform and Fast Refresh. |
 | @types/react, @types/react-dom | web dev | React types. |
 | ink | cli | React renderer for the terminal. |
+| chalk | cli | Ink's own color library, imported to read and set the color level it renders with (NO_COLOR, 16-color fallback). Same version as Ink's, so no extra code. |
 | react | cli | Peer dependency of Ink. |
 | @types/react | cli dev | React types for the Ink components. |
 | esbuild | cli dev, server dev | Bundles the CLI for npm and the server for Docker, with the workspace TS packages. Already installed by Vite and tsx. |
@@ -218,6 +239,7 @@ Every dependency needs a one-line justification. Add a row here when you add one
 packages/core        @epidle/core        pure, deterministic game logic shared by everyone
 packages/sim         @epidle/sim         headless balance simulation with greedy bots
 packages/api-client  @epidle/api-client  what both clients share: API calls, projection, shop quotes, formatting, languages, hooks (./react)
+packages/ui-theme    @epidle/ui-theme    Epitech color tokens and the WCAG contrast check, for the web and the terminal
 apps/server          @epidle/server      Fastify + SQLite, authoritative game server
 apps/web             @epidle/web         React + Vite client
 apps/cli             epidle              Ink terminal client, published to npm as `epidle`
