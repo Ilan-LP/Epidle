@@ -1,0 +1,436 @@
+/* Terminal look: one monospace font, text-driven layout, a single accent set by the language. */
+
+:root {
+  color-scheme: dark;
+  --bg: #0b0d0b;
+  --panel: #101310;
+  --fg: #cfd6cf;
+  --dim: #7b867b;
+  --line: #2b332b;
+  --accent: #5fd75f;
+  --string: #d7af5f;
+  --warn: #ffb454;
+  --bad: #ff6b6b;
+  --font:
+    ui-monospace, "Cascadia Mono", "JetBrains Mono", "SF Mono", Menlo, Consolas, "DejaVu Sans Mono",
+    "Liberation Mono", monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.45;
+  /* Code fonts turn != into a single glyph: a terminal shows what was typed. */
+  font-variant-ligatures: none;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  overflow-x: hidden;
+}
+
+.app {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 8px 16px 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+main {
+  flex: 1;
+  padding-bottom: 12px;
+}
+
+p {
+  margin: 6px 0;
+}
+
+h3 {
+  font-size: inherit;
+  color: var(--accent);
+  margin: 12px 0 4px;
+}
+
+a {
+  color: var(--accent);
+}
+
+strong {
+  color: #fff;
+  font-weight: 600;
+}
+
+.accent {
+  color: var(--accent);
+}
+.dim {
+  color: var(--dim);
+}
+.ok {
+  color: var(--accent);
+}
+.warn {
+  color: var(--warn);
+}
+.bad {
+  color: var(--bad);
+}
+.small {
+  font-size: 12px;
+}
+
+/* Header */
+
+.header {
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 6px;
+}
+
+.titlebar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.title {
+  font-weight: 600;
+}
+
+nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  margin-top: 4px;
+}
+
+select,
+input {
+  font: inherit;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  padding: 2px 4px;
+  max-width: 100%;
+}
+
+input {
+  border: none;
+  border-bottom: 1px solid var(--accent);
+  outline: none;
+  width: 16ch;
+}
+
+.status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 16px;
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--line);
+}
+
+/* Buttons look like [ text ] */
+
+.key {
+  font: inherit;
+  color: var(--string);
+  margin-right: 0.5ch;
+}
+
+.btn {
+  font: inherit;
+  color: var(--accent);
+  background: none;
+  border: none;
+  padding: 2px 0;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.btn::before {
+  content: "[";
+  color: var(--dim);
+}
+
+.btn::after {
+  content: "]";
+  color: var(--dim);
+}
+
+.btn:hover:not(:disabled),
+.btn.active {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.btn.active .key,
+.btn:hover:not(:disabled) .key {
+  color: var(--bg);
+}
+
+.btn:disabled {
+  color: var(--dim);
+  cursor: not-allowed;
+}
+
+.btn.big {
+  font-size: 16px;
+  padding: 4px 0;
+}
+
+:focus-visible {
+  outline: 1px dashed var(--accent);
+  outline-offset: 2px;
+}
+
+/* Hints are noise on touch screens. */
+@media (hover: none) {
+  .btn .key,
+  .stages .key,
+  .key-help {
+    display: none;
+  }
+}
+
+/* Panels: a box with its title on the border, like a TUI. */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 14px;
+}
+
+.panel {
+  position: relative;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  padding: 12px 10px 8px;
+  margin-top: 16px;
+  min-width: 0;
+}
+
+.panel.wide {
+  grid-column: 1 / -1;
+}
+
+.panel > h2 {
+  position: absolute;
+  top: -0.75em;
+  left: 8px;
+  margin: 0;
+  padding: 0 4px;
+  font-size: inherit;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--bg);
+  max-width: calc(100% - 16px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  html,
+  body {
+    font-size: 13px;
+  }
+}
+
+.kv {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 2px 1.5ch;
+  margin: 0;
+}
+
+.kv dt {
+  color: var(--dim);
+}
+
+.kv dd {
+  margin: 0;
+}
+
+.bar {
+  white-space: pre;
+  color: var(--accent);
+  letter-spacing: 0;
+}
+
+.bar.warn {
+  color: var(--warn);
+}
+.bar.bad {
+  color: var(--bad);
+}
+
+.table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: 1px 1ch 1px 0;
+  font-weight: normal;
+  vertical-align: top;
+}
+
+.table thead th {
+  color: var(--dim);
+  border-bottom: 1px dashed var(--line);
+}
+
+.table tbody th {
+  color: var(--dim);
+}
+
+.table .num {
+  text-align: right;
+}
+
+.table tr.me td {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.list li {
+  padding: 2px 0;
+}
+
+.list.bullets li::before {
+  content: "- ";
+  color: var(--dim);
+}
+
+.shop li {
+  overflow-wrap: anywhere;
+}
+
+.stages {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 30ch), 1fr));
+  gap: 10px 16px;
+}
+
+.stages li {
+  border-left: 2px solid var(--line);
+  padding-left: 8px;
+}
+
+.strictness {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 6px;
+}
+
+.form label {
+  white-space: nowrap;
+}
+
+/* Code ticker */
+
+.code {
+  margin: 0;
+  font: inherit;
+  overflow: hidden;
+  white-space: pre;
+  min-height: calc(7 * 1.45em);
+}
+
+.gutter {
+  color: var(--line);
+  user-select: none;
+}
+
+.tok-keyword {
+  color: var(--accent);
+}
+.tok-string {
+  color: var(--string);
+}
+.tok-number {
+  color: var(--warn);
+}
+.tok-comment {
+  color: var(--dim);
+  font-style: italic;
+}
+
+/* Log: the bottom of a terminal. */
+
+.log {
+  position: sticky;
+  bottom: 0;
+  background: var(--bg);
+  border-top: 1px solid var(--line);
+  padding: 6px 0 10px;
+  min-height: 3em;
+  overflow-wrap: anywhere;
+}
+
+.cursor {
+  animation: blink 1s steps(1) infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cursor {
+    animation: none;
+  }
+}
+
+/* Login and pseudo */
+
+.center {
+  max-width: 60ch;
+  margin: 24px auto;
+}
+
+.logo {
+  color: var(--accent);
+  margin: 0 0 16px;
+  font: inherit;
+  line-height: 1.15;
+  overflow-x: auto;
+}
+
+.prompt-line {
+  display: flex;
+  gap: 1ch;
+  align-items: baseline;
+}
+
+.prompt-line label {
+  color: var(--accent);
+}

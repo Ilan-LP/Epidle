@@ -20,7 +20,7 @@ pnpm dev   # server on http://localhost:3000 + web client on http://localhost:51
 pnpm cli   # terminal client, needs the server running
 ```
 
-The web client proxies `/api` to the server, so open http://localhost:5173 and it should show "Serveur : en ligne".
+The web client proxies `/api` to the server, so open http://localhost:5173. Logging in needs the Entra settings below; without them the login page shows but the Microsoft redirect fails.
 
 Run a single app:
 
@@ -75,6 +75,15 @@ All routes are under `/api`, JSON in and out, errors are `{ error, message }` wi
 | `GET /players/:pseudo/build` | player | Public build: team by kind and level, rooms, mouli stages and strictness. No money |
 
 Seasons roll over on the first request after the end and in a job that runs every minute.
+
+### Web client
+
+Terminal look, French UI, works from 360 px wide. Screens: login, pseudo, dashboard (company, team, training rooms, mouli pipeline with flow vs capacity), shop, leaderboard, a player's build next to yours (`#/joueur/<pseudo>`, shareable), help.
+
+- **Live updates:** `GET /state` on load, every 15 s while the tab is visible, when it becomes visible again, and at the end of the season. In between, the last server response is advanced locally with `advance()` from `@epidle/core`, 4 times per second. Every intent response replaces it.
+- **Nothing is computed for the server:** the client sends intents only. It runs the same core rules locally to show prices (x10 included), "affordable in", and to explain a refused action without sending it.
+- **Shortcuts:** `t` dashboard, `b` shop, `c` leaderboard, `?` help, `l` next language, `e` hire a junior, `f` start the chosen training, `1-4` stage strictness, shop `1-8` buy and `Shift+5-8` upgrade, `x` quantity, `v` leaderboard scope, `Esc` back. Digits use the physical key, so they work on AZERTY.
+- **Language** (C, C++, Haskell, Python, TypeScript, Rust) only changes the scrolling code, the colors and the prompt. Saved in `localStorage`.
 
 ## Balance simulation
 
