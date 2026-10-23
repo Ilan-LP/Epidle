@@ -4,10 +4,15 @@ import rateLimit from "@fastify/rate-limit";
 import Fastify, { type FastifyError, type FastifyInstance } from "fastify";
 import { registerApi } from "./api";
 import { registerAuth } from "./auth";
+import { backupRotate } from "./backup";
 import type { Db } from "./db";
 import type { IdentityProvider } from "./entra";
 import { API_ERRORS, sendError } from "./errors";
+import { NO_MODIFIERS, type Rotation } from "./modifiers";
 import { runMaintenance } from "./seasons";
+import { flagSuspicious, type SuspiciousKind, scanActivity } from "./suspicious";
+
+const SCAN_INTERVAL_MS = 3600_000;
 
 export type AppOptions = {
   db: Db;
@@ -16,14 +21,18 @@ export type AppOptions = {
   publicUrl: string;
   /** Wall clock in ms. Injected so tests can travel in time. */
   now?: () => number;
+  /** Weekly modifiers, from the config file. None by default. */
+  rotation?: Rotation;
   /** Runs the season rollover / cleanup job at this interval. Off when unset (tests). */
   maintenanceIntervalMs?: number;
+  /** Periodic database backups. Off when unset (tests). */
+  backup?: { dir: string; intervalMs: number; keep: number };
   trustProxy?: boolean;
   logger?: boolean;
 };
 
 export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
-  const { db, now = Date.now } = opts;
+  const { db, now = Date.now, rotation = NO_MODIFIERS } = opts;
   const app = Fastify({
     logger: opts.logger ?? false,
     trustProxy: opts.trustProxy ?? false,
@@ -73,22 +82,67 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
     return { status: "ok", db: "ok" };
   });
 
-  registerApi(app, db, now);
+  registerApi(app, db, now, rotation);
 
-  if (opts.maintenanceIntervalMs) {
-    const job = () => {
+  // Responses the official clients never cause. Logged for review, never blocked here.
+  app.addHook("onResponse", async (request, reply) => {
+    const intent = request.routeOptions.url === "/api/intent";
+    const kind: SuspiciousKind | null =
+      reply.statusCode === 429
+        ? "rate_limited"
+        : intent && reply.statusCode === 400
+          ? "invalid_intent"
+          : intent && reply.statusCode === 409
+            ? "replay"
+            : null;
+    if (!kind) return;
+    const suspicion = {
+      userId: request.user?.id ?? null,
+      ip: request.ip,
+      kind,
+      detail: `${request.method} ${request.url}`,
+    };
+    if (flagSuspicious(db, suspicion, now())) request.log.warn(suspicion, "suspicious activity");
+  });
+
+  const timers: NodeJS.Timeout[] = [];
+  const every = (ms: number, job: () => unknown, name: string) => {
+    const run = async () => {
       try {
-        runMaintenance(db, now());
+        await job();
       } catch (e) {
-        app.log.error(e, "maintenance failed");
+        app.log.error(e, `${name} failed`);
       }
     };
-    let timer: NodeJS.Timeout | undefined;
     app.addHook("onReady", async () => {
-      job();
-      timer = setInterval(job, opts.maintenanceIntervalMs);
+      void run();
+      timers.push(setInterval(run, ms));
     });
-    app.addHook("onClose", async () => clearInterval(timer));
+  };
+  app.addHook("onClose", async () => {
+    for (const t of timers) clearInterval(t);
+  });
+
+  if (opts.maintenanceIntervalMs) {
+    every(opts.maintenanceIntervalMs, () => runMaintenance(db, now(), rotation), "maintenance");
+    every(
+      SCAN_INTERVAL_MS,
+      () => {
+        for (const s of scanActivity(db, now())) app.log.warn(s, "suspicious activity");
+      },
+      "activity scan",
+    );
+  }
+  const { backup } = opts;
+  if (backup) {
+    every(
+      backup.intervalMs,
+      async () => {
+        const file = await backupRotate(db, backup.dir, backup.keep, now());
+        app.log.info({ file }, "database backup written");
+      },
+      "backup",
+    );
   }
 
   return app;

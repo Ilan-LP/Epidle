@@ -1,11 +1,13 @@
 import {
-  advance,
+  advanceSeason,
   BALANCE,
   type Balance,
+  balanceAt,
   computeRates,
   createInitialState,
   DAY,
   type GameState,
+  type SeasonWeeks,
 } from "@epidle/core";
 import { playVisit } from "./bot";
 
@@ -49,7 +51,12 @@ function magnitudes(s: GameState, cfg: Balance): number[] {
   ];
 }
 
-export function simulate(visitInterval: number, cfg: Balance = BALANCE): SimResult {
+/** `weeks` gives the weekly modifiers; the bots play each week with its balance. */
+export function simulate(
+  visitInterval: number,
+  cfg: Balance = BALANCE,
+  weeks: SeasonWeeks = [],
+): SimResult {
   let state = createInitialState(cfg);
   const visitsPerDay = new Map<number, { total: number; idle: number }>();
   let lastUseful = 0;
@@ -62,7 +69,7 @@ export function simulate(visitInterval: number, cfg: Balance = BALANCE): SimResu
 
   const observe = (s: GameState) => {
     minMoney = Math.min(minMoney, s.money);
-    for (const m of magnitudes(s, cfg)) {
+    for (const m of magnitudes(s, balanceAt(weeks, s.time, cfg))) {
       if (!Number.isFinite(m)) allFinite = false;
       maxMagnitude = Math.max(maxMagnitude, Math.abs(m));
     }
@@ -73,7 +80,7 @@ export function simulate(visitInterval: number, cfg: Balance = BALANCE): SimResu
     daily.push({
       day: Math.round(s.time / DAY),
       revenue: s.revenue,
-      netPerSecond: computeRates(s, cfg).netPerSecond,
+      netPerSecond: computeRates(s, balanceAt(weeks, s.time, cfg)).netPerSecond,
       devs: s.devs.length,
       avgLevel: s.devs.length ? levels / s.devs.length : 0,
       tier: s.tier,
@@ -81,7 +88,7 @@ export function simulate(visitInterval: number, cfg: Balance = BALANCE): SimResu
   };
 
   while (state.time < cfg.seasonSeconds) {
-    const visit = playVisit(state, visitInterval, cfg);
+    const visit = playVisit(state, visitInterval, balanceAt(weeks, state.time, cfg));
     state = visit.state;
     actions += visit.actions;
     const day = Math.floor(state.time / DAY);
@@ -94,7 +101,7 @@ export function simulate(visitInterval: number, cfg: Balance = BALANCE): SimResu
     observe(state);
     const nextVisit = Math.min(state.time + visitInterval, cfg.seasonSeconds);
     const crossesDay = Math.floor(nextVisit / DAY) > Math.floor(state.time / DAY);
-    state = advance(state, nextVisit - state.time, cfg);
+    state = advanceSeason(state, nextVisit - state.time, weeks, cfg);
     observe(state);
     if (crossesDay) snapshot(state);
   }

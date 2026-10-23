@@ -140,6 +140,23 @@ input {
   border-bottom: 1px dashed var(--line);
 }
 
+.week {
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--line);
+}
+
+.week.active {
+  border-bottom-style: solid;
+  border-bottom-color: var(--accent);
+}
+
+/* Phones: the effects are enough on every screen, the full text is in the weekly feed. */
+@media (max-width: 760px) {
+  .week .desc {
+    display: none;
+  }
+}
+
 /* Buttons look like [ text ] */
 
 .key {
@@ -433,4 +450,19 @@ input {
 
 .prompt-line label {
   color: var(--accent);
+}
+
+.feed {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.feed li {
+  padding: 2px 0;
+}
+
+.feed time {
+  color: var(--dim);
+  margin-right: 1ch;
 }

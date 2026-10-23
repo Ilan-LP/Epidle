@@ -1,0 +1,28 @@
+# EPIDLE_SITE is the public host name (epidle.example.org): Caddy gets and renews its
+# Let's Encrypt certificate. "localhost" uses a local certificate, for a test run.
+{$EPIDLE_SITE:localhost} {
+	encode zstd gzip
+
+	handle /api/* {
+		# Caddy sets X-Forwarded-For: the server trusts it (TRUST_PROXY=1) for per-IP limits.
+		reverse_proxy server:3000
+	}
+
+	handle {
+		root * /srv
+		# Hash routes (#/boutique): no SPA fallback needed.
+		file_server
+		# Vite puts a content hash in asset names: cache them forever, revalidate the page.
+		@assets path /assets/*
+		header @assets Cache-Control "public, max-age=31536000, immutable"
+		@page not path /assets/*
+		header @page Cache-Control "no-cache"
+	}
+
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+}

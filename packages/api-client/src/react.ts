@@ -110,7 +110,8 @@ export function useGame(api: Api, onAuthLost: () => void, options: GameOptions =
   const act = useCallback<Act>(
     async (intent, label) => {
       // Same rules as the server: a refusal is explained right away, without a request.
-      const refused = latest.current && precheck(latest.current.state, intent);
+      const p = latest.current;
+      const refused = p && precheck(p.state, intent, p.cfg);
       if (refused) {
         say("err", `${label} : ${INTENT_ERROR_MESSAGES[refused]}`);
         return;

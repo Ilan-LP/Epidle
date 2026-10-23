@@ -1,5 +1,6 @@
 import {
   BALANCE,
+  type Balance,
   buyMouli,
   buyRoom,
   type GameState,
@@ -69,20 +70,20 @@ export const INTENT_SCHEMA = {
   ],
 };
 
-function step(state: GameState, intent: Intent): IntentResult {
+function step(state: GameState, intent: Intent, cfg: Balance): IntentResult {
   switch (intent.type) {
     case "hire":
-      return hire(state, intent.kind);
+      return hire(state, intent.kind, cfg);
     case "train":
-      return train(state, intent.devId, intent.targetLevel);
+      return train(state, intent.devId, intent.targetLevel, cfg);
     case "buyRoom":
-      return buyRoom(state);
+      return buyRoom(state, cfg);
     case "buyMouli":
-      return buyMouli(state, intent.stage);
+      return buyMouli(state, intent.stage, cfg);
     case "upgradeMouli":
-      return upgradeMouli(state, intent.stage);
+      return upgradeMouli(state, intent.stage, cfg);
     case "setStrictness":
-      return setStrictness(state, intent.stage, intent.level);
+      return setStrictness(state, intent.stage, intent.level, cfg);
   }
 }
 
@@ -94,12 +95,16 @@ export interface IntentOutcome {
   error: IntentError | null;
 }
 
-/** Applies the intent up to `count` times, stopping at the first refusal. */
-export function applyIntent(state: GameState, intent: Intent): IntentOutcome {
+/** Applies the intent up to `count` times, stopping at the first refusal. `cfg`: the week's balance. */
+export function applyIntent(
+  state: GameState,
+  intent: Intent,
+  cfg: Balance = BALANCE,
+): IntentOutcome {
   const times = "count" in intent ? (intent.count ?? 1) : 1;
   let s = state;
   for (let applied = 0; applied < times; applied++) {
-    const r = step(s, intent);
+    const r = step(s, intent, cfg);
     if (!r.ok) return { state: s, applied, error: r.error };
     s = r.state;
   }

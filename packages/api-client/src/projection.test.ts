@@ -1,4 +1,12 @@
-import { advance, computeRates, createInitialState } from "@epidle/core";
+import {
+  advance,
+  applyEffects,
+  BALANCE,
+  computeRates,
+  createInitialState,
+  DAY,
+  type Modifier,
+} from "@epidle/core";
 import { describe, expect, it } from "vitest";
 import type { GameView } from "./api";
 import { affordableIn, newer, precheck, project, type Snapshot } from "./projection";
@@ -7,7 +15,7 @@ const view = (serverTime: number): GameView => {
   const state = createInitialState();
   return {
     serverTime,
-    season: { id: 1, startsAt: 0, endsAt: 100_000 },
+    season: { id: 1, startsAt: 0, endsAt: 100_000, weeks: [] },
     state,
     rates: computeRates(state),
   };
@@ -25,6 +33,25 @@ describe("project", () => {
   it("never goes back in time", () => {
     const snap: Snapshot = { view: view(10_000), receivedAt: 500 };
     expect(project(snap, 0).state.time).toBe(snap.view.state.time);
+  });
+
+  it("uses the balance of the current week, across the boundary", () => {
+    const rush: Modifier = { id: "rush", name: "Rush", description: "", effects: { devSpeed: 2 } };
+    const v = view(0);
+    const snap: Snapshot = {
+      view: {
+        ...v,
+        season: { ...v.season, weeks: [null, rush] },
+        state: { ...v.state, time: 7 * DAY - 10 },
+      },
+      receivedAt: 0,
+    };
+    expect(project(snap, 5_000).cfg).toBe(BALANCE);
+    const after = project(snap, 20_000);
+    expect(after.cfg.dev.baseLocPerSecond).toBe(2);
+    expect(after.rates.locPerSecond).toBe(
+      computeRates(after.state, applyEffects(rush.effects)).locPerSecond,
+    );
   });
 
   it("clamps the season countdown at 0", () => {
@@ -53,12 +80,14 @@ describe("newer", () => {
 describe("precheck", () => {
   it("explains refusals with the core rules", () => {
     const s = { ...createInitialState(), money: 1000 };
-    expect(precheck(s, { type: "hire", kind: "junior" })).toBeNull();
-    expect(precheck({ ...s, money: 0 }, { type: "hire", kind: "junior" })).toBe(
+    expect(precheck(s, { type: "hire", kind: "junior" }, BALANCE)).toBeNull();
+    expect(precheck({ ...s, money: 0 }, { type: "hire", kind: "junior" }, BALANCE)).toBe(
       "insufficient_funds",
     );
-    expect(precheck(s, { type: "hire", kind: "senior" })).toBe("locked");
-    expect(precheck(s, { type: "train", devId: 999 })).toBe("not_found");
-    expect(precheck({ ...s, rooms: 0 }, { type: "train", devId: 1 })).toBe("no_free_room");
+    expect(precheck(s, { type: "hire", kind: "senior" }, BALANCE)).toBe("locked");
+    expect(precheck(s, { type: "train", devId: 999 }, BALANCE)).toBe("not_found");
+    const cheap = applyEffects({ hireCost: 0.01 });
+    expect(precheck({ ...s, money: 1 }, { type: "hire", kind: "junior" }, cheap)).toBeNull();
+    expect(precheck({ ...s, rooms: 0 }, { type: "train", devId: 1 }, BALANCE)).toBe("no_free_room");
   });
 });

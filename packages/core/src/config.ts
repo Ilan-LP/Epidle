@@ -52,6 +52,8 @@ export interface TierConfig {
 
 export interface Balance {
   seasonSeconds: number;
+  /** Weekly modifiers change at every multiple of this, counted from the season start. */
+  weekSeconds: number;
   start: { money: number; juniors: number; rooms: number };
   dev: {
     /** LoC/s of an untrained junior. */
@@ -100,6 +102,7 @@ export interface Balance {
 
 export const BALANCE: Balance = {
   seasonSeconds: 14 * DAY,
+  weekSeconds: 7 * DAY,
   start: { money: 20, juniors: 2, rooms: 1 },
   dev: {
     baseLocPerSecond: 1,

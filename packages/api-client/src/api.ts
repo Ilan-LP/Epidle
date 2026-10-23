@@ -1,4 +1,4 @@
-import type { GameState, HireKind, Rates, StageId } from "@epidle/core";
+import type { GameState, HireKind, Modifier, Rates, SeasonWeeks, StageId } from "@epidle/core";
 
 // Thin client for the server API, shared by the web and terminal clients. Every response that
 // carries a game view (state, intent, and the 409/422 intent errors) is the new source of truth.
@@ -7,6 +7,8 @@ export interface SeasonView {
   id: number;
   startsAt: number;
   endsAt: number;
+  /** Weekly modifiers, null for a normal week. */
+  weeks: SeasonWeeks;
 }
 
 export interface GameView {
@@ -41,6 +43,29 @@ export interface PlayerBuild {
   rooms: number;
   team: { kind: HireKind; level: number; count: number; training: number }[];
   stages: { id: StageId; instances: number; version: number; strictness: number }[];
+}
+
+export interface FeedEvent {
+  at: number;
+  kind: "tier" | "level" | "lead" | "top10";
+  pseudo: string;
+  /** Tier index, dev level or rank. */
+  value: number;
+  /** First of the season to reach this tier or level. */
+  first: boolean;
+}
+
+/** What changed this week of the season. */
+export interface Feed {
+  season: SeasonView;
+  week: { index: number; startsAt: number; endsAt: number; modifier: Modifier | null };
+  /** Newest first. */
+  events: FeedEvent[];
+  /** Biggest score gains since the week started. */
+  climbers: { pseudo: string; gain: number }[];
+  players: number;
+  /** Players whose company started this week. */
+  joined: number;
 }
 
 export type Intent =
@@ -136,6 +161,7 @@ export function createApi({ baseUrl = "", token, fetch: doFetch = fetch }: ApiOp
     intent: (intent: Intent) =>
       request<IntentResponse>("POST", "/api/intent", { ...intent, requestId: newRequestId() }),
     leaderboard: (scope: Scope) => request<Leaderboard>("GET", `/api/leaderboard?scope=${scope}`),
+    feed: () => request<Feed>("GET", "/api/feed"),
     build: (pseudo: string) =>
       request<PlayerBuild>("GET", `/api/players/${encodeURIComponent(pseudo)}/build`),
     logout: () => request<void>("POST", "/api/auth/logout"),

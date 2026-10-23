@@ -1,4 +1,6 @@
 import {
+  currentWeek,
+  effectsText,
   formatDuration,
   formatMoney,
   formatRate,
@@ -15,11 +17,12 @@ import { Help } from "./screens/Help";
 import { Leaderboard } from "./screens/Leaderboard";
 import { PlayerBuild } from "./screens/PlayerBuild";
 import { PseudoForm } from "./screens/PseudoForm";
+import { Share } from "./screens/Share";
 import { Shop } from "./screens/Shop";
 import { A, K, T, useLang } from "./ui";
 
 export type Route =
-  | { name: "dashboard" | "shop" | "leaderboard" | "help" | "pseudo" }
+  | { name: "dashboard" | "shop" | "leaderboard" | "help" | "pseudo" | "share" }
   | { name: "player"; pseudo: string };
 
 export type Navigate = (route: Route) => void;
@@ -31,8 +34,8 @@ const NAV: { name: "dashboard" | "shop" | "leaderboard" | "help"; key: string; l
   { name: "help", key: "?", label: "aide" },
 ];
 
-/** Lines taken by the header, status bar and log: the screen gets the rest. */
-const CHROME_LINES = 7;
+/** Lines taken by the header, status bar, week banner and log: the screen gets the rest. */
+const CHROME_LINES = 8;
 
 /** Screen width from which panels sit side by side. */
 export const WIDE = 110;
@@ -109,6 +112,7 @@ export function Game({ pseudo, setLang, onAuthLost, onPseudo, onLogout }: Props)
         )}
       </Text>
       <StatusBar game={game} />
+      <WeekBanner game={game} />
       <Box flexDirection="column" height={height} overflow="hidden" contentOffsetY={offset}>
         {/* No shrinking: Ink boxes shrink by default and their lines would overlap. */}
         <Box ref={content} flexDirection="column" flexShrink={0}>
@@ -149,7 +153,15 @@ function Screen({
 } & Omit<Props, "setLang">) {
   // Screens that don't need the game state render right away.
   if (route.name === "leaderboard")
-    return <Leaderboard me={pseudo} height={height} navigate={navigate} onAuthLost={onAuthLost} />;
+    return (
+      <Leaderboard
+        me={pseudo}
+        height={height}
+        wide={wide}
+        navigate={navigate}
+        onAuthLost={onAuthLost}
+      />
+    );
   if (route.name === "help")
     return <Help pseudo={pseudo} navigate={navigate} onLogout={onLogout} wide={wide} />;
   if (route.name === "pseudo") {
@@ -180,8 +192,18 @@ function Screen({
           onAuthLost={onAuthLost}
         />
       );
+    case "share":
+      return <Share p={p} pseudo={pseudo} navigate={navigate} />;
     default:
-      return <Dashboard p={p} act={game.act} wide={wide} height={height} />;
+      return (
+        <Dashboard
+          p={p}
+          act={game.act}
+          wide={wide}
+          height={height}
+          onShare={() => navigate({ name: "share" })}
+        />
+      );
   }
 }
 
@@ -201,6 +223,32 @@ function StatusBar({ game }: { game: GameData }) {
           : `fin de saison dans ${formatDuration(p.seasonLeft)}`}
       </T>
       {game.error && <T tone="bad"> {game.error}</T>}
+    </Text>
+  );
+}
+
+/** The weekly modifier, on one line under the status bar: it changes what is worth buying. */
+export function WeekBanner({ game }: { game: GameData }) {
+  const p = game.projection;
+  if (!p) return <Text> </Text>;
+  const w = currentWeek(p);
+  const label = `Semaine ${w.index + 1}/${w.count}`;
+  const end = ` · fin dans ${formatDuration(w.left)}${w.next !== undefined ? ` · ensuite : ${w.next?.name ?? "semaine normale"}` : ""}`;
+  return (
+    <Text wrap="truncate">
+      {/* Most useful first: a narrow terminal cuts the end of the line. */}
+      {w.modifier ? (
+        <>
+          <A bold>
+            {label} · {w.modifier.name}
+          </A>{" "}
+          ({effectsText(w.modifier.effects)})<T tone="dim">{end}</T> {w.modifier.description}
+        </>
+      ) : (
+        <T tone="dim">
+          {label} · semaine normale{end}
+        </T>
+      )}
     </Text>
   );
 }

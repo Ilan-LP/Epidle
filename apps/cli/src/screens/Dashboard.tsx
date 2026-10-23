@@ -14,6 +14,7 @@ import {
 import type { Act } from "@epidle/api-client/react";
 import {
   BALANCE,
+  type Balance,
   type Dev,
   devLocPerSecond,
   devSalaryPerSecond,
@@ -33,11 +34,13 @@ interface Props {
   act: Act;
   wide: boolean;
   height: number;
+  /** Opens the "copy my build" screen. */
+  onShare: () => void;
 }
 
 type Pane = "company" | "pipeline";
 
-export function Dashboard({ p, act, wide, height }: Props) {
+export function Dashboard({ p, act, wide, height, onShare }: Props) {
   const training = useTrainingForm(p.state);
   const [pane, setPane] = useState<Pane>("company");
   const hireJunior = () => act({ type: "hire", kind: "junior" }, "embauche Junior");
@@ -53,6 +56,7 @@ export function Dashboard({ p, act, wide, height }: Props) {
   };
 
   useKeys({
+    y: onShare,
     e: hireJunior,
     f: () => training.submit(act),
     left: () => training.moveLevel(-1),
@@ -156,6 +160,9 @@ function Company({ p }: { p: Projection }) {
           total
         </T>
       </Text>
+      <Text>
+        <K k="y" /> copier mon build pour Discord
+      </Text>
     </Panel>
   );
 }
@@ -175,7 +182,7 @@ function Team({ p }: { p: Projection }) {
     }
     return [...map.values()].sort((a, b) => b.level - a.level || a.kind.localeCompare(b.kind));
   }, [p.state.devs]);
-  const juniorCost = hireCost(p.state, "junior");
+  const juniorCost = hireCost(p.state, "junior", p.cfg);
   const wait = affordableIn(juniorCost, p.state.money, p.rates.netPerSecond);
 
   return (
@@ -193,8 +200,8 @@ function Team({ p }: { p: Projection }) {
           <T tone="dim">{col(BALANCE.hire.kinds[g.kind].name, 10)}</T>
           {col(String(g.count), 4, true)}
           <T tone="warn">{g.training > 0 ? "*" : " "}</T>
-          {col(formatNumber(devLocPerSecond(g.level), 1), 9, true)}
-          {col(formatNumber(devSalaryPerSecond(g.level), 2), 8, true)}
+          {col(formatNumber(devLocPerSecond(g.level, p.cfg), 1), 9, true)}
+          {col(formatNumber(devSalaryPerSecond(g.level, p.cfg), 2), 8, true)}
         </Text>
       ))}
       {groups.length > 6 && <T tone="dim">… {groups.length - 6} autres groupes</T>}
@@ -265,14 +272,16 @@ function Rooms({ p, form }: { p: Projection; form: TrainingForm }) {
   const trainees = s.devs.filter((d) => d.training);
   const free = s.rooms - trainees.length;
   const plan =
-    form.level !== null && form.target !== null ? trainingPlan(form.level, form.target) : null;
+    form.level !== null && form.target !== null
+      ? trainingPlan(form.level, form.target, p.cfg)
+      : null;
   const wait = plan ? affordableIn(plan.cost, s.money, p.rates.netPerSecond) : null;
   const group = form.idle.find((g) => g.level === form.level);
 
   return (
     <Panel title={`Salles de formation · ${trainees.length}/${s.rooms}`}>
       {trainees.slice(0, MAX_TRAINEES).map((dev) => (
-        <Trainee key={dev.id} dev={dev} time={s.time} />
+        <Trainee key={dev.id} dev={dev} time={s.time} cfg={p.cfg} />
       ))}
       {trainees.length > MAX_TRAINEES && (
         <T tone="dim">… {trainees.length - MAX_TRAINEES} autres en formation</T>
@@ -310,11 +319,12 @@ function Rooms({ p, form }: { p: Projection; form: TrainingForm }) {
   );
 }
 
-function Trainee({ dev, time }: { dev: Dev; time: number }) {
+function Trainee({ dev, time, cfg }: { dev: Dev; time: number; cfg: Balance }) {
   if (!dev.training) return null;
-  const step = trainingSeconds(dev.level);
+  const step = trainingSeconds(dev.level, cfg);
   const stepLeft = dev.training.levelEndsAt - time;
-  const totalLeft = stepLeft + trainingPlan(dev.level + 1, dev.training.targetLevel).seconds;
+  // The levels after this one follow this week's balance: an estimate if the week changes.
+  const totalLeft = stepLeft + trainingPlan(dev.level + 1, dev.training.targetLevel, cfg).seconds;
   return (
     <Text wrap="truncate">
       #{dev.id} {levelName(dev.level)} → <Text bold>{levelName(dev.training.targetLevel)}</Text>{" "}

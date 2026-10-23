@@ -3,20 +3,36 @@ import type { FastifyInstance } from "fastify";
 import { requirePlayer, requireUser } from "./auth";
 import type { Db } from "./db";
 import { sendError } from "./errors";
-import { loadGame, refreshScores, type Season, saveGame } from "./games";
+import { weekFeed } from "./feed";
+import { loadGame, refreshScores, type Season, saveGame, stateBalance } from "./games";
 import { applyIntent, INTENT_SCHEMA, type Intent } from "./intents";
+import type { Rotation } from "./modifiers";
 import { currentSeason } from "./seasons";
 
 export const PSEUDO_PATTERN = "^[A-Za-z0-9_-]{3,16}$";
 const LEADERBOARD_SIZE = 50;
 /** The leaderboard advances every company of the season, at most this often. */
 const SCORES_MAX_AGE_MS = 30_000;
+// Per player, on top of the global 300/min. The clients poll the state every 15 s and the
+// leaderboard and feed every 30 s: these leave room for several tabs, not for a scraper.
 const INTENT_RATE_LIMIT = { rateLimit: { max: 30, timeWindow: 10_000 } };
+const STATE_RATE_LIMIT = { rateLimit: { max: 60, timeWindow: 60_000 } };
+const READ_RATE_LIMIT = { rateLimit: { max: 30, timeWindow: 60_000 } };
 
-const seasonView = (s: Season) => ({ id: s.id, startsAt: s.startsAt, endsAt: s.endsAt });
+const seasonView = (s: Season) => ({
+  id: s.id,
+  startsAt: s.startsAt,
+  endsAt: s.endsAt,
+  weeks: s.weeks,
+});
 
 function gameView(season: Season, state: GameState, now: number) {
-  return { serverTime: now, season: seasonView(season), state, rates: computeRates(state) };
+  return {
+    serverTime: now,
+    season: seasonView(season),
+    state,
+    rates: computeRates(state, stateBalance(season, state)),
+  };
 }
 
 interface RankRow {
@@ -71,7 +87,12 @@ function buildView(state: GameState) {
   };
 }
 
-export function registerApi(app: FastifyInstance, db: Db, now: () => number) {
+export function registerApi(app: FastifyInstance, db: Db, now: () => number, rotation: Rotation) {
+  const season = (t: number) => currentSeason(db, t, rotation);
+  const freshScores = (s: Season, t: number) => {
+    if (t - s.scoresRefreshedAt > SCORES_MAX_AGE_MS) refreshScores(db, s, t);
+  };
+
   app.get("/api/me", { preHandler: requireUser }, async (request) => ({
     pseudo: request.user?.pseudo ?? null,
   }));
@@ -100,21 +121,25 @@ export function registerApi(app: FastifyInstance, db: Db, now: () => number) {
     },
   );
 
-  app.get("/api/state", { preHandler: requirePlayer }, async (request) => {
-    const t = now();
-    const season = currentSeason(db, t);
-    const userId = request.user?.id as number;
-    const state = loadGame(db, userId, season, t);
-    saveGame(db, userId, season.id, state);
-    return gameView(season, state, t);
-  });
+  app.get(
+    "/api/state",
+    { preHandler: requirePlayer, config: STATE_RATE_LIMIT },
+    async (request) => {
+      const t = now();
+      const s = season(t);
+      const userId = request.user?.id as number;
+      const state = loadGame(db, userId, s, t);
+      saveGame(db, userId, s, state, t);
+      return gameView(s, state, t);
+    },
+  );
 
   app.post<{ Body: Intent }>(
     "/api/intent",
     { preHandler: requirePlayer, config: INTENT_RATE_LIMIT, schema: { body: INTENT_SCHEMA } },
     async (request, reply) => {
       const t = now();
-      const season = currentSeason(db, t);
+      const s = season(t);
       const userId = request.user?.id as number;
       const intent = request.body;
       // Synchronous and in one transaction: no other request can interleave, and a request id
@@ -125,15 +150,15 @@ export function registerApi(app: FastifyInstance, db: Db, now: () => number) {
             "INSERT OR IGNORE INTO intent_requests (user_id, request_id, created_at) VALUES (?, ?, ?)",
           )
           .run(userId, intent.requestId, t);
-        const before = loadGame(db, userId, season, t);
+        const before = loadGame(db, userId, s, t);
         if (fresh.changes === 0) return { replay: true as const, state: before };
-        const outcome = applyIntent(before, intent);
-        saveGame(db, userId, season.id, outcome.state);
+        const outcome = applyIntent(before, intent, stateBalance(s, before));
+        saveGame(db, userId, s, outcome.state, t);
         return { replay: false as const, outcome };
       })();
-      if (result.replay) return sendError(reply, 409, "replay", gameView(season, result.state, t));
+      if (result.replay) return sendError(reply, 409, "replay", gameView(s, result.state, t));
       const { outcome } = result;
-      const view = gameView(season, outcome.state, t);
+      const view = gameView(s, outcome.state, t);
       if (outcome.applied === 0 && outcome.error) {
         return reply.code(422).send({
           error: outcome.error,
@@ -155,6 +180,7 @@ export function registerApi(app: FastifyInstance, db: Db, now: () => number) {
     "/api/leaderboard",
     {
       preHandler: requirePlayer,
+      config: READ_RATE_LIMIT,
       schema: {
         querystring: {
           type: "object",
@@ -164,21 +190,29 @@ export function registerApi(app: FastifyInstance, db: Db, now: () => number) {
     },
     async (request) => {
       const t = now();
-      const season = currentSeason(db, t);
-      if (t - season.scoresRefreshedAt > SCORES_MAX_AGE_MS) refreshScores(db, season, t);
+      const s = season(t);
+      freshScores(s, t);
       const scope = request.query.scope ?? "season";
       return {
         scope,
-        season: seasonView(season),
-        ...leaderboard(db, scope === "season" ? season.id : null, request.user?.id as number),
+        season: seasonView(s),
+        ...leaderboard(db, scope === "season" ? s.id : null, request.user?.id as number),
       };
     },
   );
+
+  app.get("/api/feed", { preHandler: requirePlayer, config: READ_RATE_LIMIT }, async () => {
+    const t = now();
+    const s = season(t);
+    freshScores(s, t);
+    return { season: seasonView(s), ...weekFeed(db, s, t) };
+  });
 
   app.get<{ Params: { pseudo: string } }>(
     "/api/players/:pseudo/build",
     {
       preHandler: requirePlayer,
+      config: STATE_RATE_LIMIT,
       schema: {
         params: {
           type: "object",
@@ -189,18 +223,18 @@ export function registerApi(app: FastifyInstance, db: Db, now: () => number) {
     },
     async (request, reply) => {
       const t = now();
-      const season = currentSeason(db, t);
+      const s = season(t);
       const row = db
         .prepare(
           `SELECT u.id, u.pseudo FROM users u JOIN games g ON g.user_id = u.id AND g.season_id = ?
            WHERE u.pseudo = ?`,
         )
-        .get(season.id, request.params.pseudo) as { id: number; pseudo: string } | undefined;
+        .get(s.id, request.params.pseudo) as { id: number; pseudo: string } | undefined;
       if (!row) return sendError(reply, 404, "not_found");
       return {
         pseudo: row.pseudo,
-        season: seasonView(season),
-        ...buildView(loadGame(db, row.id, season, t)),
+        season: seasonView(s),
+        ...buildView(loadGame(db, row.id, s, t)),
       };
     },
   );

@@ -8,9 +8,11 @@ import {
   formatRate,
   type Language,
   type Projection,
+  shareText,
 } from "@epidle/api-client";
 import {
   BALANCE,
+  type Balance,
   type Dev,
   devLocPerSecond,
   devSalaryPerSecond,
@@ -21,7 +23,9 @@ import {
   trainingSeconds,
 } from "@epidle/core";
 import { useEffect, useMemo, useState } from "react";
-import type { Act } from "../hooks";
+import { api } from "../api";
+import { copyText } from "../clipboard";
+import type { Act, Game } from "../hooks";
 import { usePrefersReducedMotion } from "../hooks";
 import { useShortcuts } from "../keys";
 import { Bar, Btn, Code, Key, levelName, Panel, strictnessName, tierName } from "../ui";
@@ -29,12 +33,25 @@ import { Bar, Btn, Code, Key, levelName, Panel, strictnessName, tierName } from 
 interface Props {
   p: Projection;
   act: Act;
+  say: Game["say"];
   lang: Language;
+  pseudo: string;
 }
 
-export function Dashboard({ p, act, lang }: Props) {
+/** Copies the Discord snapshot of the build. The rank is fetched at that moment. */
+async function copyBuild(p: Projection, pseudo: string, say: Game["say"]) {
+  const rank = await api.leaderboard("season").then(
+    (b) => b.me?.rank ?? null,
+    () => null,
+  );
+  const text = shareText({ pseudo, p, rank, webUrl: window.location.origin });
+  if (await copyText(text)) say("ok", "build copié, colle-le sur Discord");
+  else say("err", "copie impossible : le navigateur l'a refusée");
+}
+
+export function Dashboard({ p, act, say, lang, pseudo }: Props) {
   const training = useTrainingForm(p.state);
-  const juniorCost = hireCost(p.state, "junior");
+  const juniorCost = hireCost(p.state, "junior", p.cfg);
   const hireJunior = () => act({ type: "hire", kind: "junior" }, "embauche Junior");
   const cycleStrictness = (i: number) => {
     const stage = BALANCE.stages[i];
@@ -47,7 +64,10 @@ export function Dashboard({ p, act, lang }: Props) {
     );
   };
 
+  const share = () => copyBuild(p, pseudo, say);
+
   useShortcuts({
+    y: share,
     e: hireJunior,
     f: () => training.submit(act),
     ...Object.fromEntries(BALANCE.stages.map((_, i) => [String(i + 1), () => cycleStrictness(i)])),
@@ -55,7 +75,7 @@ export function Dashboard({ p, act, lang }: Props) {
 
   return (
     <div className="grid">
-      <Company p={p} />
+      <Company p={p} onShare={share} />
       <CodeTicker lang={lang} locPerSecond={p.rates.locPerSecond} />
       <Team p={p} juniorCost={juniorCost} onHire={hireJunior} />
       <Rooms p={p} form={training} act={act} />
@@ -64,7 +84,7 @@ export function Dashboard({ p, act, lang }: Props) {
   );
 }
 
-function Company({ p }: { p: Projection }) {
+function Company({ p, onShare }: { p: Projection; onShare: () => void }) {
   const { state: s, rates: r } = p;
   const current = BALANCE.tiers[s.tier];
   const next = BALANCE.tiers[s.tier + 1];
@@ -120,6 +140,11 @@ function Company({ p }: { p: Projection }) {
           </span>
         </dd>
       </dl>
+      <p>
+        <Btn hint="y" onClick={onShare} title="Résumé texte de ton build, à coller sur Discord">
+          Copier mon build
+        </Btn>
+      </p>
     </Panel>
   );
 }
@@ -205,8 +230,8 @@ function Team({
                   </span>
                 )}
               </td>
-              <td className="num">{formatNumber(devLocPerSecond(g.level), 1)}</td>
-              <td className="num">{formatNumber(devSalaryPerSecond(g.level), 2)}</td>
+              <td className="num">{formatNumber(devLocPerSecond(g.level, p.cfg), 1)}</td>
+              <td className="num">{formatNumber(devSalaryPerSecond(g.level, p.cfg), 2)}</td>
             </tr>
           ))}
         </tbody>
@@ -265,14 +290,16 @@ function Rooms({ p, form, act }: { p: Projection; form: TrainingForm; act: Act }
   const trainees = s.devs.filter((d) => d.training);
   const free = s.rooms - trainees.length;
   const plan =
-    form.level !== null && form.target !== null ? trainingPlan(form.level, form.target) : null;
+    form.level !== null && form.target !== null
+      ? trainingPlan(form.level, form.target, p.cfg)
+      : null;
   const wait = plan ? affordableIn(plan.cost, s.money, p.rates.netPerSecond) : null;
 
   return (
     <Panel title={`Salles de formation · ${trainees.length}/${s.rooms}`}>
       <ul className="list">
         {trainees.map((dev) => (
-          <Trainee key={dev.id} dev={dev} time={s.time} />
+          <Trainee key={dev.id} dev={dev} time={s.time} cfg={p.cfg} />
         ))}
         {Array.from({ length: Math.max(0, free) }, (_, i) => (
           // biome-ignore lint/suspicious/noArrayIndexKey: identical placeholders
@@ -337,11 +364,12 @@ function Rooms({ p, form, act }: { p: Projection; form: TrainingForm; act: Act }
   );
 }
 
-function Trainee({ dev, time }: { dev: Dev; time: number }) {
+function Trainee({ dev, time, cfg }: { dev: Dev; time: number; cfg: Balance }) {
   if (!dev.training) return null;
-  const step = trainingSeconds(dev.level);
+  const step = trainingSeconds(dev.level, cfg);
   const stepLeft = dev.training.levelEndsAt - time;
-  const totalLeft = stepLeft + trainingPlan(dev.level + 1, dev.training.targetLevel).seconds;
+  // The levels after this one follow this week's balance: an estimate if the week changes.
+  const totalLeft = stepLeft + trainingPlan(dev.level + 1, dev.training.targetLevel, cfg).seconds;
   return (
     <li>
       #{dev.id} {levelName(dev.level)} → <strong>{levelName(dev.training.targetLevel)}</strong>

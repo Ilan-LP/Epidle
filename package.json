@@ -14,6 +14,7 @@
     "typecheck": "pnpm -r typecheck",
     "test": "vitest run",
     "sim": "pnpm --filter @epidle/sim start",
+    "admin": "pnpm --filter @epidle/server admin",
     "anticheat": "vitest run apps/server/src/anti-cheat.test.ts"
   },
   "devDependencies": {

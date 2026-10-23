@@ -3,6 +3,7 @@ import { buildApp } from "./app";
 import { createSession, upsertUser } from "./auth";
 import { openDb } from "./db";
 import { AuthError, type DevicePoll, type IdentityProvider } from "./entra";
+import { NO_MODIFIERS, type Rotation } from "./modifiers";
 import { runMaintenance } from "./seasons";
 
 export function fakeProvider() {
@@ -53,7 +54,7 @@ export const T0 = Date.UTC(2026, 9, 1);
 /** Core durations are in seconds, the clock is in ms. */
 export const MS = 1000;
 
-export async function testApp() {
+export async function testApp({ rotation = NO_MODIFIERS }: { rotation?: Rotation } = {}) {
   const db = openDb(":memory:");
   const clock = { t: T0 };
   const fake = fakeProvider();
@@ -62,9 +63,10 @@ export async function testApp() {
     provider: fake.provider,
     publicUrl: "http://localhost:5173",
     now: () => clock.t,
+    rotation,
   });
   // What the server does at boot: the first season starts at T0.
-  runMaintenance(db, clock.t);
+  runMaintenance(db, clock.t, rotation);
   let requestIds = 0;
 
   const auth = (token: string) => ({ authorization: `Bearer ${token}` });

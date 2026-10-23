@@ -1,0 +1,42 @@
+{
+  "$comment": "Weekly modifiers. Each season has 2 weeks; week k of the server (season 1 week 1 is k = 0) gets rotation[k % rotation.length], null is a normal week. A season copies its weeks when it opens: edits apply from the next season. Effects are multipliers between 0.25 and 4, see Effects in packages/core/src/modifiers.ts.",
+  "modifiers": [
+    {
+      "id": "rush",
+      "name": "Semaine Rush",
+      "description": "Deadline en vue : les devs codent 50 % plus vite, mais laissent 40 % de bugs en plus. Les moulis stricts n'ont jamais été aussi utiles.",
+      "effects": { "devSpeed": 1.5, "bugs": 1.4 }
+    },
+    {
+      "id": "soldes",
+      "name": "Soldes du BDE",
+      "description": "Recrutements et salles de formation à -40 %.",
+      "effects": { "hireCost": 0.6, "roomCost": 0.6 }
+    },
+    {
+      "id": "piscine",
+      "name": "Semaine Piscine",
+      "description": "Les salles tournent jour et nuit : formations 25 % plus courtes, mais 50 % plus chères.",
+      "effects": { "trainingTime": 0.75, "trainingCost": 1.5 }
+    },
+    {
+      "id": "audit",
+      "name": "Semaine d'audit",
+      "description": "Le client paie la qualité : chaque LoC livrée rapporte 30 % de plus, mais les moulis tournent 25 % moins vite.",
+      "effects": { "value": 1.3, "mouliSpeed": 0.75 }
+    },
+    {
+      "id": "greve",
+      "name": "Grève des moulis",
+      "description": "Les moulis tournent 40 % moins vite, instances et versions sont à moitié prix.",
+      "effects": { "mouliSpeed": 0.6, "mouliCost": 0.5 }
+    },
+    {
+      "id": "crunch",
+      "name": "Crunch",
+      "description": "Heures sup' pour tout le monde : les devs produisent 25 % de plus, payés 50 % de plus.",
+      "effects": { "devSpeed": 1.25, "salary": 1.5 }
+    }
+  ],
+  "rotation": ["rush", "soldes", "piscine", "audit", "greve", "crunch"]
+}
