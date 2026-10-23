@@ -1,4 +1,15 @@
 import {
+  affordableIn,
+  codeLines,
+  formatDuration,
+  formatMoney,
+  formatNumber,
+  formatPercent,
+  formatRate,
+  type Language,
+  type Projection,
+} from "@epidle/api-client";
+import {
   BALANCE,
   type Dev,
   devLocPerSecond,
@@ -10,12 +21,9 @@ import {
   trainingSeconds,
 } from "@epidle/core";
 import { useEffect, useMemo, useState } from "react";
-import { formatDuration, formatMoney, formatNumber, formatPercent, formatRate } from "../format";
 import type { Act } from "../hooks";
 import { usePrefersReducedMotion } from "../hooks";
 import { useShortcuts } from "../keys";
-import { codeLines, type Language } from "../languages";
-import { affordableIn, type Projection } from "../projection";
 import { Bar, Btn, Code, Key, levelName, Panel, strictnessName, tierName } from "../ui";
 
 interface Props {

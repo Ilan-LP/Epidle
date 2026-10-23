@@ -1,7 +1,13 @@
-import { formatDuration, formatMoney, formatRate } from "./format";
+import {
+  formatDuration,
+  formatMoney,
+  formatRate,
+  LANGUAGES,
+  type Language,
+  type LanguageId,
+} from "@epidle/api-client";
 import { type Game as GameData, useGame } from "./hooks";
 import { useShortcuts } from "./keys";
-import { LANGUAGES, type Language, type LanguageId } from "./languages";
 import { href, navigate, type Route, useRoute } from "./router";
 import { Header } from "./Shell";
 import { Dashboard } from "./screens/Dashboard";

@@ -1,3 +1,5 @@
+import { BALANCE } from "@epidle/core";
+
 // French number formatting for a monospace UI: short, stable widths, no locale surprises.
 
 const SUFFIXES = ["", " k", " M", " Md", " Bn", " Brd"];
@@ -53,3 +55,7 @@ export function bar(ratio: number, width = 20): string {
   const partial = PARTIAL[eighths % 8] ?? "";
   return "█".repeat(full) + partial + "░".repeat(width - full - (partial ? 1 : 0));
 }
+
+export const levelName = (level: number) => BALANCE.levels[level] ?? `niveau ${level}`;
+export const tierName = (tier: number) => BALANCE.tiers[tier]?.name ?? `palier ${tier}`;
+export const strictnessName = (level: number) => BALANCE.strictness[level]?.name ?? "?";

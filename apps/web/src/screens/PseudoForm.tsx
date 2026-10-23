@@ -1,5 +1,6 @@
+import { ApiError, PSEUDO_RE } from "@epidle/api-client";
 import { type FormEvent, useState } from "react";
-import { ApiError, api, PSEUDO_RE } from "../api";
+import { api } from "../api";
 
 export function PseudoForm({
   current,

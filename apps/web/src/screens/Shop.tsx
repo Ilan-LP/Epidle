@@ -1,19 +1,21 @@
-import { BALANCE, type GameState, INTENT_ERROR_MESSAGES, type IntentError } from "@epidle/core";
-import { useState } from "react";
-import { formatDuration, formatMoney } from "../format";
-import type { Act } from "../hooks";
-import { useShortcuts } from "../keys";
-import { affordableIn, type Projection } from "../projection";
-import { navigate } from "../router";
 import {
+  affordableIn,
+  formatDuration,
+  formatMoney,
   hireItem,
   maxAffordable,
   mouliItem,
+  type Projection,
   quote,
   roomItem,
   type ShopItem,
   upgradeItem,
-} from "../shop";
+} from "@epidle/api-client";
+import { BALANCE, type GameState, INTENT_ERROR_MESSAGES, type IntentError } from "@epidle/core";
+import { useState } from "react";
+import type { Act } from "../hooks";
+import { useShortcuts } from "../keys";
+import { navigate } from "../router";
 import { Btn, Panel, tierName } from "../ui";
 
 const MODES = [1, 10, 100, "max"] as const;

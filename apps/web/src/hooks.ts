@@ -1,8 +1,20 @@
+import {
+  ApiError,
+  type GameView,
+  type Intent,
+  isGameView,
+  type Language,
+  type LanguageId,
+  languageById,
+  newer,
+  type Projection,
+  precheck,
+  project,
+  type Snapshot,
+} from "@epidle/api-client";
 import { INTENT_ERROR_MESSAGES } from "@epidle/core";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ApiError, api, type GameView, type Intent, isGameView } from "./api";
-import { type Language, type LanguageId, languageById } from "./languages";
-import { newer, type Projection, precheck, project, type Snapshot } from "./projection";
+import { api } from "./api";
 
 /** The server state never changes on its own: polling only catches clock drift and rollovers. */
 const POLL_MS = 15_000;

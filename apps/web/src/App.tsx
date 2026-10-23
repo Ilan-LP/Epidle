@@ -1,5 +1,6 @@
+import { ApiError } from "@epidle/api-client";
 import { useCallback, useEffect, useState } from "react";
-import { ApiError, api } from "./api";
+import { api } from "./api";
 import { Game } from "./Game";
 import { useLanguage } from "./hooks";
 import { Header } from "./Shell";

@@ -1,6 +1,6 @@
+import { formatMoney, type Scope } from "@epidle/api-client";
 import { useState } from "react";
-import { api, type Scope } from "../api";
-import { formatMoney } from "../format";
+import { api } from "../api";
 import { usePolled } from "../hooks";
 import { useShortcuts } from "../keys";
 import { href, navigate } from "../router";
