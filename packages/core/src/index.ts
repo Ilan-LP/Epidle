@@ -5,6 +5,7 @@ export * from "./advance";
 export * from "./config";
 export * from "./economy";
 export * from "./intents";
+export * from "./modifiers";
 export * from "./state";
 
 export const GAME_NAME = "Epidle";
