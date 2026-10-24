@@ -107,6 +107,10 @@ export function Login({ onToken }: { onToken: (token: string) => void }) {
             2. entre le code <A bold>{step.login.userCode}</A>
           </Text>
           <T tone="dim">en attente de la connexion… (le code expire dans {formatDuration(left)})</T>
+          <T tone="warn">
+            Ne donne jamais ce code à quelqu'un et n'entre pas un code reçu par message : il
+            connecterait ton compte sur sa machine.
+          </T>
         </>
       )}
       {expired && (
