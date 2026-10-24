@@ -4,15 +4,13 @@ import { requirePlayer, requireUser } from "./auth";
 import type { Db } from "./db";
 import { sendError } from "./errors";
 import { weekFeed } from "./feed";
-import { loadGame, refreshScores, type Season, saveGame, stateBalance } from "./games";
+import { loadGame, type Season, saveGame, stateBalance } from "./games";
 import { applyIntent, INTENT_SCHEMA, type Intent } from "./intents";
 import type { Rotation } from "./modifiers";
 import { currentSeason } from "./seasons";
 
 export const PSEUDO_PATTERN = "^[A-Za-z0-9_-]{3,16}$";
 const LEADERBOARD_SIZE = 50;
-/** The leaderboard advances every company of the season, at most this often. */
-const SCORES_MAX_AGE_MS = 30_000;
 // Per player, on top of the global 300/min. The clients poll the state every 15 s and the
 // leaderboard and feed every 30 s: these leave room for several tabs, not for a scraper.
 const INTENT_RATE_LIMIT = { rateLimit: { max: 30, timeWindow: 10_000 } };
@@ -88,10 +86,9 @@ function buildView(state: GameState) {
 }
 
 export function registerApi(app: FastifyInstance, db: Db, now: () => number, rotation: Rotation) {
+  // Scores are advanced by the maintenance job (every minute) and by each player's own saves,
+  // never on a request: refreshing every company blocks the server for a while at scale.
   const season = (t: number) => currentSeason(db, t, rotation);
-  const freshScores = (s: Season, t: number) => {
-    if (t - s.scoresRefreshedAt > SCORES_MAX_AGE_MS) refreshScores(db, s, t);
-  };
 
   app.get("/api/me", { preHandler: requireUser }, async (request) => ({
     pseudo: request.user?.pseudo ?? null,
@@ -191,7 +188,6 @@ export function registerApi(app: FastifyInstance, db: Db, now: () => number, rot
     async (request) => {
       const t = now();
       const s = season(t);
-      freshScores(s, t);
       const scope = request.query.scope ?? "season";
       return {
         scope,
@@ -204,7 +200,6 @@ export function registerApi(app: FastifyInstance, db: Db, now: () => number, rot
   app.get("/api/feed", { preHandler: requirePlayer, config: READ_RATE_LIMIT }, async () => {
     const t = now();
     const s = season(t);
-    freshScores(s, t);
     return { season: seasonView(s), ...weekFeed(db, s, t) };
   });
 

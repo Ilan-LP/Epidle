@@ -123,6 +123,7 @@ describe("leaderboard", () => {
       await t.intent(token, { type: "hire", kind: "junior" });
     t.clock.t += HOUR * MS;
     const last = tokens[54] as string;
+    t.refresh();
     const board = (await t.get(last, "/api/leaderboard")).json();
     expect(board.scope).toBe("season");
     expect(board.entries).toHaveLength(50);
@@ -132,6 +133,21 @@ describe("leaderboard", () => {
     expect([...scores].sort((a, b) => b - a)).toEqual(scores);
     // The 45 who did nothing are tied right after the 10 who hired.
     expect(board.me).toEqual({ rank: 11, score: board.entries[10].score });
+  });
+
+  it("never advances every company on a request, only the maintenance job does", async () => {
+    const [a, b] = await players(2);
+    await t.get(a as string, "/api/state");
+    await t.get(b as string, "/api/state");
+    const refreshedAt = () =>
+      (t.db.prepare("SELECT scores_refreshed_at AS at FROM seasons").get() as { at: number }).at;
+    const before = refreshedAt();
+    t.clock.t += HOUR * MS;
+    await t.get(a as string, "/api/leaderboard");
+    await t.get(a as string, "/api/feed");
+    expect(refreshedAt()).toBe(before);
+    t.refresh();
+    expect(refreshedAt()).toBe(t.clock.t);
   });
 
   it("all-time sums every season", async () => {

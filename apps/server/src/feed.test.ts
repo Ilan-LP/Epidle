@@ -26,9 +26,10 @@ async function players(t: T, n: number) {
   return tokens;
 }
 
-/** Past the 30 s cache of the scores, then reads the feed. */
+/** Runs the maintenance job (live scores, rank changes), then reads the feed. */
 async function feed(t: T, token: string) {
   t.clock.t += 31 * MS;
+  t.refresh();
   return (await t.get(token, "/api/feed")).json();
 }
 

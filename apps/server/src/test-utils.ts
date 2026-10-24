@@ -111,5 +111,8 @@ export async function testApp({ rotation = NO_MODIFIERS }: { rotation?: Rotation
   const get = (token: string, url: string) =>
     app.inject({ method: "GET", url, headers: auth(token) });
 
-  return { app, db, clock, fake, auth, login, player, intent, get };
+  /** What the maintenance job does every minute: rollover and live scores. */
+  const refresh = () => runMaintenance(db, clock.t, rotation);
+
+  return { app, db, clock, fake, auth, login, player, intent, get, refresh };
 }
