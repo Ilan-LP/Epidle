@@ -1,4 +1,5 @@
 import { BALANCE } from "@epidle/core";
+import { grantAwards } from "./awards";
 import type { Db } from "./db";
 import { refreshScores, type Season } from "./games";
 import { NO_MODIFIERS, type Rotation, seasonWeeks } from "./modifiers";
@@ -52,6 +53,7 @@ export function anchoredStart(anchor: number, now: number): number {
 function closeSeason(db: Db, season: Season, now: number): void {
   db.transaction(() => {
     refreshScores(db, season, season.endsAt);
+    grantAwards(db, season);
     db.prepare("UPDATE seasons SET closed_at = ? WHERE id = ?").run(now, season.id);
   })();
 }

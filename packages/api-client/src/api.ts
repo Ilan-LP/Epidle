@@ -1,4 +1,5 @@
 import type { GameState, HireKind, Modifier, Rates, SeasonWeeks, StageId } from "@epidle/core";
+import type { Award } from "./awards";
 
 // Thin client for the server API, shared by the web and terminal clients. Every response that
 // carries a game view (state, intent, and the 409/422 intent errors) is the new source of truth.
@@ -30,7 +31,8 @@ export type Scope = "season" | "alltime";
 export interface Leaderboard {
   scope: Scope;
   season: SeasonView;
-  entries: { rank: number; pseudo: string; score: number }[];
+  /** `title`: the player's best badge of any past season. */
+  entries: { rank: number; pseudo: string; score: number; title: Award | null }[];
   me: { rank: number; score: number } | null;
 }
 
@@ -43,6 +45,8 @@ export interface PlayerBuild {
   rooms: number;
   team: { kind: HireKind; level: number; count: number; training: number }[];
   stages: { id: StageId; instances: number; version: number; strictness: number }[];
+  /** Badges of past seasons, newest first. */
+  badges: Award[];
 }
 
 export interface FeedEvent {

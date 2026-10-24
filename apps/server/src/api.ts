@@ -1,6 +1,7 @@
 import { BALANCE, computeRates, type GameState, INTENT_ERROR_MESSAGES } from "@epidle/core";
 import type { FastifyInstance } from "fastify";
 import { requirePlayer, requireUser } from "./auth";
+import { awardsOf, titlesOf } from "./awards";
 import type { Db } from "./db";
 import { sendError } from "./errors";
 import { weekFeed } from "./feed";
@@ -54,8 +55,17 @@ function leaderboard(db: Db, seasonId: number | null, userId: number) {
   const me = db.prepare(`${ranked} WHERE id = @user`).get({ season: seasonId, user: userId }) as
     | RankRow
     | undefined;
+  const titles = titlesOf(
+    db,
+    top.map((r) => r.id),
+  );
   return {
-    entries: top.map(({ rank, pseudo, score }) => ({ rank, pseudo, score })),
+    entries: top.map(({ id, rank, pseudo, score }) => ({
+      rank,
+      pseudo,
+      score,
+      title: titles.get(id) ?? null,
+    })),
     me: me ? { rank: me.rank, score: me.score } : null,
   };
 }
@@ -236,6 +246,7 @@ export function registerApi(
         pseudo: row.pseudo,
         season: seasonView(s),
         ...buildView(loadGame(db, row.id, s, t)),
+        badges: awardsOf(db, row.id),
       };
     },
   );

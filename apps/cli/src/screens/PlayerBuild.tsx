@@ -1,4 +1,5 @@
 import {
+  awardText,
   type PlayerBuild as Build,
   formatMoney,
   levelName,
@@ -99,6 +100,13 @@ function Comparison({ build, mine, self }: { build: Build; mine: GameState; self
           {col(g.training ? String(g.training) : "", 14, true)}
         </Text>
       ))}
+      <Text> </Text>
+      <Text bold>Badges</Text>
+      {build.badges.length ? (
+        <Text wrap="wrap">{build.badges.map(awardText).join(" · ")}</Text>
+      ) : (
+        <T tone="dim">Aucun pour l'instant.</T>
+      )}
       <T tone="dim">L'argent en banque reste privé.</T>
     </Box>
   );

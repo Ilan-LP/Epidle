@@ -115,6 +115,16 @@ export const MIGRATIONS: readonly string[] = [
     released_at INTEGER NOT NULL
   );
   `,
+  `
+  -- Badges kept across seasons (awards.ts), written when a season closes.
+  CREATE TABLE awards (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    season_id INTEGER NOT NULL REFERENCES seasons(id),
+    kind TEXT NOT NULL,
+    value INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, season_id, kind)
+  );
+  `,
 ];
 
 export function migrate(db: Db): void {

@@ -29,6 +29,7 @@ const RULES = [
   "Une mouli attrape une partie des bugs, mais elle a une capacité. Le surplus part sans vérification.",
   "Former un dev double sa production, et chaque niveau prend deux fois plus de temps.",
   "Tout continue quand tu n'es pas là. Le score est le CA cumulé de la saison (14 jours).",
+  "En fin de saison tout repart à zéro, sauf tes badges : top 10, Licorne, dev Légende.",
   "Cliquer ne sert à rien : ce sont tes décisions qui comptent.",
 ];
 

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { runAdmin } from "./admin";
 import { openDb } from "./db";
-import { MIGRATIONS, migrate } from "./migrations";
+import { migrate } from "./migrations";
 import { isPseudoAllowed, pseudoKey, RELEASE_MS, RENAME_COOLDOWN_MS } from "./pseudo";
 import { MS, testApp } from "./test-utils";
 
@@ -114,8 +114,9 @@ describe("admin rename", () => {
 describe("migration", () => {
   it("fills the key of existing pseudos with the same mapping as pseudoKey", () => {
     const db = openDb(":memory:");
-    db.pragma(`user_version = ${MIGRATIONS.length - 1}`);
-    db.exec("DROP TABLE released_pseudos; DROP INDEX users_pseudo_key;");
+    // Back to just before the pseudo rules (migration 3), dropping what it and later ones add.
+    db.pragma("user_version = 2");
+    db.exec("DROP TABLE awards; DROP TABLE released_pseudos; DROP INDEX users_pseudo_key;");
     db.exec(
       "ALTER TABLE users DROP COLUMN pseudo_key; ALTER TABLE users DROP COLUMN pseudo_changed_at;",
     );

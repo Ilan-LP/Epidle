@@ -43,6 +43,9 @@ export function Help({
           <li>
             Tout continue quand tu n'es pas là. Le score est le CA cumulé de la saison (14 jours).
           </li>
+          <li>
+            En fin de saison tout repart à zéro, sauf tes badges : top 10, Licorne, dev Légende.
+          </li>
           <li>Cliquer ne sert à rien : ce sont tes décisions qui comptent.</li>
         </ul>
       </Panel>

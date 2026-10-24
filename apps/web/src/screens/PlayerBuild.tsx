@@ -1,4 +1,4 @@
-import { type PlayerBuild as Build, formatMoney } from "@epidle/api-client";
+import { awardText, type PlayerBuild as Build, formatMoney } from "@epidle/api-client";
 import { BALANCE, type GameState } from "@epidle/core";
 import { useState } from "react";
 import { api } from "../api";
@@ -112,6 +112,10 @@ function Comparison({ build, mine, self }: { build: Build; mine: GameState; self
           ))}
         </tbody>
       </table>
+      <h3>Badges</h3>
+      <p className={build.badges.length ? undefined : "dim"}>
+        {build.badges.length ? build.badges.map(awardText).join(" · ") : "Aucun pour l'instant."}
+      </p>
       <p className="dim small">L'argent en banque reste privé.</p>
     </>
   );
