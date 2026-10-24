@@ -22,7 +22,12 @@ const LOGIN_COOKIE = "epidle_login";
 const SESSION_MS = 30 * 24 * 3600 * 1000;
 const LOGIN_MS = 10 * 60 * 1000;
 // Per IP: a whole campus behind one NAT can log in at the same time, so not too tight.
+// The device code start calls Microsoft, the browser routes only touch our database.
 const AUTH_RATE_LIMIT = { rateLimit: { max: 120, timeWindow: 60_000 } };
+/** A web login is 2 requests: this is about 300 logins a minute from one campus IP. */
+const BROWSER_LOGIN_RATE_LIMIT = { rateLimit: { max: 600, timeWindow: 60_000 } };
+/** Browser navigations: a JSON error page is useless there, app.ts redirects them instead. */
+export const BROWSER_AUTH_ROUTES = new Set(["/api/auth/login", "/api/auth/callback"]);
 // The CLI polls every few seconds while the player types the code: limited per login instead.
 // Needs the parsed body, hence the later hook.
 const POLL_RATE_LIMIT = {
@@ -115,7 +120,7 @@ export function registerAuth(app: FastifyInstance, { db, provider, publicUrl, no
     });
 
   // Web: authorization code + PKCE, the server holds the verifier.
-  app.get("/api/auth/login", { config: AUTH_RATE_LIMIT }, async (_request, reply) => {
+  app.get("/api/auth/login", { config: BROWSER_LOGIN_RATE_LIMIT }, async (_request, reply) => {
     if (!provider) return sendError(reply, 503, "auth_unavailable");
     const state = randomToken();
     const nonce = randomToken();
@@ -137,7 +142,7 @@ export function registerAuth(app: FastifyInstance, { db, provider, publicUrl, no
   app.get<{ Querystring: { code?: string; state?: string; error?: string } }>(
     "/api/auth/callback",
     {
-      config: AUTH_RATE_LIMIT,
+      config: BROWSER_LOGIN_RATE_LIMIT,
       schema: {
         querystring: {
           type: "object",

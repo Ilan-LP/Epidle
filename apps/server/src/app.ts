@@ -3,7 +3,7 @@ import cookie from "@fastify/cookie";
 import rateLimit from "@fastify/rate-limit";
 import Fastify, { type FastifyError, type FastifyInstance } from "fastify";
 import { registerApi } from "./api";
-import { registerAuth } from "./auth";
+import { BROWSER_AUTH_ROUTES, registerAuth } from "./auth";
 import { backupRotate } from "./backup";
 import type { Db } from "./db";
 import type { IdentityProvider } from "./entra";
@@ -66,7 +66,13 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   registerAuth(app, { db, provider: opts.provider, publicUrl: opts.publicUrl, now });
 
   app.setErrorHandler((error: FastifyError, request, reply) => {
-    if (error.statusCode === 429) return sendError(reply, 429, "rate_limited");
+    if (error.statusCode === 429) {
+      // The player clicked a link: back to the login page with its error, not a JSON page.
+      if (BROWSER_AUTH_ROUTES.has(request.routeOptions.url ?? "")) {
+        return reply.redirect(`${opts.publicUrl}/?login=error`);
+      }
+      return sendError(reply, 429, "rate_limited");
+    }
     if (
       error.validation ||
       (error.statusCode && error.statusCode >= 400 && error.statusCode < 500)

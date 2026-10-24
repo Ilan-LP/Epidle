@@ -83,6 +83,25 @@ describe("web login (authorization code + PKCE)", () => {
   });
 });
 
+describe("web login rate limit", () => {
+  it("lets a whole campus behind one IP log in, then sends the browser back to the login page", async () => {
+    // 300 web logins (login + callback) in the same minute from one IP all go through.
+    const codes = new Set<number>();
+    for (let i = 0; i < 300; i++) {
+      const { state, loginCookie } = await startWebLogin();
+      t.fake.codes.set(`code${i}`, `oid-${i}`);
+      codes.add((await callback(state, `code${i}`, loginCookie)).statusCode);
+    }
+    expect([...codes]).toEqual([302]);
+    expect(t.db.prepare("SELECT count(*) AS n FROM users").get()).toEqual({ n: 300 });
+    // Past 600 a minute on a route: a redirect to the login page with its error, not a JSON page.
+    for (let i = 300; i < 600; i++) await t.app.inject({ method: "GET", url: "/api/auth/login" });
+    const limited = await t.app.inject({ method: "GET", url: "/api/auth/login" });
+    expect(limited.statusCode).toBe(302);
+    expect(limited.headers.location).toBe("http://localhost:5173/?login=error");
+  });
+});
+
 describe("CLI login (device code)", () => {
   it("stays pending until approved, then returns a bearer token", async () => {
     const start = (await t.app.inject({ method: "POST", url: "/api/auth/device" })).json();
