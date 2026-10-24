@@ -18,3 +18,30 @@ describe("GET /api/health", async () => {
     expect(res.json().error).toBe("auth_unavailable");
   });
 });
+
+describe("behind the reverse proxy", () => {
+  it("takes the client IP Caddy appended, not one the client forged", async () => {
+    const app = await buildApp({
+      db: openDb(":memory:"),
+      provider: null,
+      publicUrl: "http://x",
+      trustProxy: true,
+    });
+    app.get("/ip", async (request) => ({ ip: request.ip }));
+    const res = await app.inject({
+      method: "GET",
+      url: "/ip",
+      headers: { "x-forwarded-for": "6.6.6.6, 203.0.113.7" },
+    });
+    expect(res.json()).toEqual({ ip: "203.0.113.7" });
+    // Reached directly from the internet (port published by mistake): the header is ignored.
+    const direct = await app.inject({
+      method: "GET",
+      url: "/ip",
+      remoteAddress: "198.51.100.9",
+      headers: { "x-forwarded-for": "6.6.6.6" },
+    });
+    expect(direct.json()).toEqual({ ip: "198.51.100.9" });
+    await app.close();
+  });
+});

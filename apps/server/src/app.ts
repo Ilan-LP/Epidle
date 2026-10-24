@@ -1,3 +1,4 @@
+import { BlockList, isIPv4 } from "node:net";
 import type { HealthResponse } from "@epidle/core";
 import cookie from "@fastify/cookie";
 import rateLimit from "@fastify/rate-limit";
@@ -13,6 +14,29 @@ import { runMaintenance } from "./seasons";
 import { flagSuspicious, type SuspiciousKind, scanActivity } from "./suspicious";
 
 const SCAN_INTERVAL_MS = 3600_000;
+
+const PRIVATE = new BlockList();
+for (const [net, prefix] of [
+  ["127.0.0.0", 8],
+  ["10.0.0.0", 8],
+  ["172.16.0.0", 12],
+  ["192.168.0.0", 16],
+] as const) {
+  PRIVATE.addSubnet(net, prefix, "ipv4");
+}
+PRIVATE.addSubnet("::1", 128, "ipv6");
+PRIVATE.addSubnet("fc00::", 7, "ipv6");
+
+/**
+ * Only the direct peer is trusted, and only if it is on a private network (Caddy, on the Docker
+ * network): the client IP is then the last X-Forwarded-For entry, the one Caddy wrote. `true`
+ * would take the first entry, which any client can write itself.
+ */
+function trustCaddyHop(address: string, hop: number): boolean {
+  if (hop !== 0) return false;
+  const v4 = address.startsWith("::ffff:") ? address.slice(7) : address;
+  return PRIVATE.check(v4, isIPv4(v4) ? "ipv4" : "ipv6");
+}
 
 export type AppOptions = {
   db: Db;
@@ -35,7 +59,7 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   const { db, now = Date.now, rotation = NO_MODIFIERS } = opts;
   const app = Fastify({
     logger: opts.logger ?? false,
-    trustProxy: opts.trustProxy ?? false,
+    trustProxy: opts.trustProxy ? trustCaddyHop : false,
     // Intents are a few dozen bytes.
     bodyLimit: 4096,
     ajv: {
