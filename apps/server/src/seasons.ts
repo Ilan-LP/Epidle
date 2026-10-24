@@ -64,11 +64,15 @@ export function currentSeason(db: Db, now: number, rotation: Rotation = NO_MODIF
   return season;
 }
 
-/** Periodic job: season rollover, live scores, cleanup of expired rows. */
-export function runMaintenance(db: Db, now: number, rotation: Rotation = NO_MODIFIERS): void {
+/**
+ * Periodic job: season rollover, live scores, cleanup of expired rows.
+ * Returns the user ids whose stored company could not be read (see refreshScores).
+ */
+export function runMaintenance(db: Db, now: number, rotation: Rotation = NO_MODIFIERS): number[] {
   const season = currentSeason(db, now, rotation);
-  refreshScores(db, season, now);
+  const corrupted = refreshScores(db, season, now);
   db.prepare("DELETE FROM sessions WHERE expires_at <= ?").run(now);
   db.prepare("DELETE FROM auth_requests WHERE expires_at <= ?").run(now);
   db.prepare("DELETE FROM intent_requests WHERE created_at <= ?").run(now - REQUEST_ID_TTL_MS);
+  return corrupted;
 }

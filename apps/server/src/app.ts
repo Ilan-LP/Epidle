@@ -124,7 +124,15 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   });
 
   if (opts.maintenanceIntervalMs) {
-    every(opts.maintenanceIntervalMs, () => runMaintenance(db, now(), rotation), "maintenance");
+    every(
+      opts.maintenanceIntervalMs,
+      () => {
+        const corrupted = runMaintenance(db, now(), rotation);
+        if (corrupted.length)
+          app.log.error({ userIds: corrupted }, "corrupted game states skipped");
+      },
+      "maintenance",
+    );
     every(
       SCAN_INTERVAL_MS,
       () => {

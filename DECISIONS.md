@@ -98,3 +98,7 @@ Non-obvious technical choices, newest at the bottom. One entry per decision: wha
 - **The cosmetic language is a layer on the code snippets only.** It used to recolor the whole UI (accent, key hints, borders); now it sets keyword and string colors in the snippets, so every language reads as Epitech. `Language.accent` was renamed `keyword` to say so. The language colors are tested for AA on the panels.
 - **Logo:** the official white Epitech logo from epitech.eu, as a file, under the wordmark ("pour les étudiants Epitech"). The main title stays the text wordmark `EPIDLE` and the favicon is a text "E_" in the theme colors, not the Epitech favicon: with Epitech's own icon and logo as the identity, the tab would look like an official Epitech page.
 
+
+## 2026-10-24 Audit fixes (see AUDIT.md)
+
+- **A corrupted company only breaks its own player (M1).** Stored states go through `isGameState` (core: shape, finite numbers, levels and stages within the balance) on read. `loadGame` throws `CorruptStateError` for that player (500 for them only); `refreshScores` skips the row, freezing its score, and returns its user id so the maintenance job logs it at `error`. Before, one bad row stopped the leaderboard, the feed and the season rollover, so the whole game after the season end. The row is not deleted automatically: a human decides (restore from a backup or `admin remove`).

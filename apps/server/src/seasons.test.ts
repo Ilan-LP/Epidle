@@ -63,3 +63,39 @@ describe("season rollover", () => {
     expect(t.db.prepare("SELECT count(*) AS n FROM intent_requests").get()).toEqual({ n: 0 });
   });
 });
+
+describe("corrupted rows", () => {
+  it("only affect their own player, never the leaderboard or the rollover", async () => {
+    const alice = t.player("oid-a", "Alice");
+    const bob = t.player("oid-b", "Bobby");
+    await t.get(alice, "/api/state");
+    await t.get(bob, "/api/state");
+    t.db
+      .prepare("UPDATE games SET state = ? WHERE user_id = (SELECT id FROM users WHERE pseudo = ?)")
+      .run('{"time":', "Bobby");
+    t.clock.t += HOUR * MS;
+
+    expect((await t.get(alice, "/api/state")).statusCode).toBe(200);
+    expect((await t.get(alice, "/api/leaderboard")).statusCode).toBe(200);
+    expect((await t.get(alice, "/api/feed")).statusCode).toBe(200);
+    expect((await t.get(bob, "/api/state")).statusCode).toBe(500);
+    const bobId = (
+      t.db.prepare("SELECT id FROM users WHERE pseudo = 'Bobby'").get() as { id: number }
+    ).id;
+    expect(runMaintenance(t.db, t.clock.t)).toEqual([bobId]);
+
+    t.clock.t += SEASON_MS;
+    expect((await t.get(alice, "/api/state")).json().season.id).toBe(2);
+    // A new season is a new company: Bob plays again.
+    expect((await t.get(bob, "/api/state")).statusCode).toBe(200);
+  });
+
+  it("rejects a valid JSON that is not a state", async () => {
+    const alice = t.player("oid-a", "Alice");
+    await t.get(alice, "/api/state");
+    t.db.prepare("UPDATE games SET state = ?").run('{"money":1e12}');
+    t.clock.t += HOUR * MS;
+    expect((await t.get(alice, "/api/state")).statusCode).toBe(500);
+    expect((await t.get(t.player("oid-b", "Bobby"), "/api/leaderboard")).statusCode).toBe(200);
+  });
+});

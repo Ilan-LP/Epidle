@@ -5,6 +5,7 @@ import {
   balanceAt,
   createInitialState,
   type GameState,
+  isGameState,
   type SeasonWeeks,
   weekIndex,
 } from "@epidle/core";
@@ -42,13 +43,36 @@ interface GameRow {
   weekBase: number;
 }
 
+/** A stored state that cannot be read back: only its own player is affected. */
+export class CorruptStateError extends Error {
+  constructor(readonly userId: number) {
+    super(`corrupted game state for user ${userId}`);
+  }
+}
+
+/** Parses a stored state, null if it is not valid JSON or not a valid state. */
+export function parseState(json: string): GameState | null {
+  try {
+    const value: unknown = JSON.parse(json);
+    return isGameState(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function readState(userId: number, json: string): GameState {
+  const state = parseState(json);
+  if (!state) throw new CorruptStateError(userId);
+  return state;
+}
+
 const SELECT_ROW =
   "SELECT state, week, week_base AS weekBase FROM games WHERE user_id = ? AND season_id = ?";
 
 /** The player's company for this season at `now`, created on first visit. Not saved. */
 export function loadGame(db: Db, userId: number, season: Season, now: number): GameState {
   const row = db.prepare(SELECT_ROW).get(userId, season.id) as GameRow | undefined;
-  if (row) return catchUp(JSON.parse(row.state) as GameState, season, now);
+  if (row) return catchUp(readState(userId, row.state), season, now);
   // Late joiners start at the current season time: the season end is the same for everyone.
   return { ...createInitialState(), time: seasonTime(season, now) };
 }
@@ -98,30 +122,32 @@ function writeGame(
 
 export function saveGame(db: Db, userId: number, season: Season, state: GameState, now: number) {
   const prev = db.prepare(SELECT_ROW).get(userId, season.id) as GameRow | undefined;
-  writeGame(
-    db,
-    userId,
-    season,
-    prev,
-    prev ? (JSON.parse(prev.state) as GameState) : null,
-    state,
-    now,
-  );
+  writeGame(db, userId, season, prev, prev ? readState(userId, prev.state) : null, state, now);
 }
 
-/** Advances every company of the season to `now` so leaderboard scores are live. */
-export function refreshScores(db: Db, season: Season, now: number): void {
+/**
+ * Advances every company of the season to `now` so leaderboard scores are live. A corrupted row
+ * is left as is (its score frozen) instead of failing the leaderboard and the season rollover for
+ * everyone. Returns the user ids of those rows, for the log.
+ */
+export function refreshScores(db: Db, season: Season, now: number): number[] {
   const rows = db
     .prepare(
       "SELECT user_id AS userId, state, week, week_base AS weekBase FROM games WHERE season_id = ?",
     )
     .all(season.id) as (GameRow & { userId: number })[];
+  const corrupted: number[] = [];
   db.transaction(() => {
     for (const row of rows) {
-      const before = JSON.parse(row.state) as GameState;
+      const before = parseState(row.state);
+      if (!before) {
+        corrupted.push(row.userId);
+        continue;
+      }
       writeGame(db, row.userId, season, row, before, catchUp(before, season, now), now);
     }
     trackRanks(db, season, now);
     db.prepare("UPDATE seasons SET scores_refreshed_at = ? WHERE id = ?").run(now, season.id);
   })();
+  return corrupted;
 }
