@@ -5,6 +5,8 @@ export const API_ERRORS = {
   unauthorized: "Connecte-toi pour jouer.",
   pseudo_required: "Choisis un pseudo pour jouer.",
   pseudo_taken: "Ce pseudo est déjà pris.",
+  pseudo_forbidden: "Ce pseudo n'est pas autorisé.",
+  pseudo_cooldown: "Tu as changé de pseudo il y a moins de 24 h, réessaie plus tard.",
   invalid_request: "Requête invalide.",
   rate_limited: "Trop de requêtes, réessaie dans un instant.",
   replay: "Cette action a déjà été reçue.",

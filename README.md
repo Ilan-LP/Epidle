@@ -198,6 +198,7 @@ Commands run from the repository folder on the server machine. Below, `admin` st
 | Update | `git pull && docker compose up -d --build`. Migrations run on start. A database newer than the code refuses to open: never roll the code back past a migration without restoring a backup |
 | Change the weekly modifiers | Edit `apps/server/modifiers.json`, `docker compose restart server`, check `admin weeks`. Applies from the next season. A bad file stops the server at start: read the log, fix, restart |
 | Find a player | `admin players [text]`: pseudo, season score, number of suspicious events |
+| Offensive pseudo | `admin rename <pseudo> <new>` (no cooldown, no blocklist), or `admin remove <pseudo> --ban`. The blocklist is in `apps/server/src/pseudo.ts` |
 | Review scripting | `admin suspicious [--hours 72]`: grouped by player and kind, with the last detail |
 | Remove a player | `admin remove <pseudo>` shows what would go; with `--yes` it deletes the player, their companies, sessions and feed events, at once. They can log in again as a new player |
 | Ban a player | `admin remove <pseudo> --ban --reason "<why>" --yes`: same, and their Microsoft account is refused at login. `admin bans`, `admin unban <id>` |

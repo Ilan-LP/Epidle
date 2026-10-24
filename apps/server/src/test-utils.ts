@@ -4,6 +4,7 @@ import { createSession, upsertUser } from "./auth";
 import { openDb } from "./db";
 import { AuthError, type DevicePoll, type IdentityProvider } from "./entra";
 import { NO_MODIFIERS, type Rotation } from "./modifiers";
+import { setPseudo } from "./pseudo";
 import { runMaintenance } from "./seasons";
 
 export function fakeProvider() {
@@ -96,7 +97,7 @@ export async function testApp({ rotation = NO_MODIFIERS }: { rotation?: Rotation
   /** Creates a player straight in the database: no login round trips, no auth rate limit. */
   function player(oid: string, pseudo: string): string {
     const id = upsertUser(db, { oid }, clock.t);
-    db.prepare("UPDATE users SET pseudo = ? WHERE id = ?").run(pseudo, id);
+    setPseudo(db, id, pseudo, clock.t);
     return createSession(db, id, clock.t);
   }
 

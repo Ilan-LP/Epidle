@@ -99,6 +99,22 @@ export const MIGRATIONS: readonly string[] = [
     at INTEGER NOT NULL
   );
   `,
+  `
+  -- Pseudo rules (pseudo.ts). pseudo_key merges case, "_", "-" and lookalikes: same mapping as
+  -- pseudoKey(), keep both in sync. Uniqueness on the key is checked by the server.
+  ALTER TABLE users ADD COLUMN pseudo_key TEXT;
+  ALTER TABLE users ADD COLUMN pseudo_changed_at INTEGER;
+  UPDATE users SET pseudo_key = replace(replace(replace(replace(replace(
+    lower(pseudo), '_', ''), '-', ''), '0', 'o'), '1', 'l'), 'i', 'l') WHERE pseudo IS NOT NULL;
+  CREATE INDEX users_pseudo_key ON users(pseudo_key);
+
+  -- Pseudos given up by a rename, reserved for their old owner for a while.
+  CREATE TABLE released_pseudos (
+    pseudo_key TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    released_at INTEGER NOT NULL
+  );
+  `,
 ];
 
 export function migrate(db: Db): void {

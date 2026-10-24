@@ -49,7 +49,14 @@ describe("web login (authorization code + PKCE)", () => {
     expect(me.json()).toEqual({ pseudo: null });
     // Only the Microsoft object id is stored.
     expect(t.db.prepare("SELECT * FROM users").all()).toEqual([
-      { id: 1, ms_oid: "oid-alice", pseudo: null, created_at: t.clock.t },
+      {
+        id: 1,
+        ms_oid: "oid-alice",
+        pseudo: null,
+        created_at: t.clock.t,
+        pseudo_key: null,
+        pseudo_changed_at: null,
+      },
     ]);
   });
 

@@ -7,9 +7,9 @@ import { weekFeed } from "./feed";
 import { loadGame, type Season, saveGame, stateBalance } from "./games";
 import { applyIntent, INTENT_SCHEMA, type Intent } from "./intents";
 import type { Rotation } from "./modifiers";
+import { PSEUDO_PATTERN, pseudoRefusal, setPseudo } from "./pseudo";
 import { currentSeason } from "./seasons";
 
-export const PSEUDO_PATTERN = "^[A-Za-z0-9_-]{3,16}$";
 const LEADERBOARD_SIZE = 50;
 // Per player, on top of the global 300/min. The clients poll the state every 15 s and the
 // leaderboard and feed every 30 s: these leave room for several tabs, not for a scraper.
@@ -109,11 +109,11 @@ export function registerApi(app: FastifyInstance, db: Db, now: () => number, rot
     },
     async (request, reply) => {
       const { pseudo } = request.body;
-      const taken = db
-        .prepare("SELECT 1 FROM users WHERE pseudo = ? AND id != ?")
-        .get(pseudo, request.user?.id);
-      if (taken) return sendError(reply, 409, "pseudo_taken");
-      db.prepare("UPDATE users SET pseudo = ? WHERE id = ?").run(pseudo, request.user?.id);
+      const userId = request.user?.id as number;
+      const t = now();
+      const refusal = pseudoRefusal(db, userId, pseudo, t);
+      if (refusal) return sendError(reply, refusal === "pseudo_forbidden" ? 422 : 409, refusal);
+      setPseudo(db, userId, pseudo, t);
       return { pseudo };
     },
   );
