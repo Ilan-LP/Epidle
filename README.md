@@ -132,7 +132,7 @@ Same screens and rules as the web client, in Ink, fully keyboard driven. Shares 
 
 - **Login:** device code flow. The CLI shows a Microsoft URL and a code (`o` opens the browser), and polls the server until the player has logged in. The session token is saved per server in `EPIDLE_CONFIG`, readable by its owner only (0600).
 - **Shortcuts:** same as the web (`t b c ? l`, `y e f 1-4`, shop `1-8 x`, `v`, `Esc`), plus `q` quit, arrows to pick the dev and the target level of a training, `↑↓ Enter` to buy any shop line or open a player's build, `Tab` to switch between company and pipeline on terminals under 110 columns, `PgUp/PgDn` to scroll small terminals. The AZERTY digit row works without Shift.
-- **Publishing:** set `DEFAULT_SERVER_URL` in `apps/cli/src/args.ts` to the production URL, then `npm publish` from `apps/cli` (`prepack` builds the bundle). Only `dist/epidle.js` ships: the workspace packages are bundled in, `ink`, `react` and `chalk` are regular dependencies.
+- **Publishing:** `EPIDLE_PUBLISH_SERVER_URL=https://<EPIDLE_SITE> npm publish` from `apps/cli`: `prepack` builds the bundle with that server as the default and refuses to build without an https URL. Only `dist/epidle.js` ships: the workspace packages are bundled in, `ink`, `react` and `chalk` are regular dependencies.
 
 ## Theming
 
@@ -187,7 +187,7 @@ cp .env.example .env        # EPIDLE_SITE, ENTRA_TENANT_ID, ENTRA_CLIENT_ID (+ s
 docker compose up -d --build
 ```
 
-Needs a DNS record for `EPIDLE_SITE` pointing to the machine and ports 80 and 443 open. The Entra redirect URI is then `https://<EPIDLE_SITE>/api/auth/callback`. For the CLI, set `DEFAULT_SERVER_URL` to `https://<EPIDLE_SITE>` before publishing.
+Needs a DNS record for `EPIDLE_SITE` pointing to the machine and ports 80 and 443 open. The Entra redirect URI is then `https://<EPIDLE_SITE>/api/auth/callback`. For the CLI, publish with `EPIDLE_PUBLISH_SERVER_URL=https://<EPIDLE_SITE>` (see Terminal client).
 
 ## Runbook
 
