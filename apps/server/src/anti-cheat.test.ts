@@ -247,6 +247,25 @@ describe("request spam", () => {
     expect(codes.slice(30).every((c) => c === 429)).toBe(true);
   });
 
+  it("limits device code polling per IP too, whatever the handles", async () => {
+    const codes = new Set<number>();
+    for (let i = 0; i < 600; i++) {
+      const res = await t.app.inject({
+        method: "POST",
+        url: "/api/auth/device/token",
+        payload: { handle: `made-up-${i}` },
+      });
+      codes.add(res.statusCode);
+    }
+    expect([...codes]).toEqual([410]);
+    const res = await t.app.inject({
+      method: "POST",
+      url: "/api/auth/device/token",
+      payload: { handle: "made-up-again" },
+    });
+    expect(res.statusCode).toBe(429);
+  });
+
   it("counts invalid and anonymous requests too", async () => {
     const invalid: number[] = [];
     for (let i = 0; i < 32; i++) invalid.push((await t.intent(token, { type: "nope" })).statusCode);

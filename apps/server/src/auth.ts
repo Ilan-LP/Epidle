@@ -28,17 +28,18 @@ const AUTH_RATE_LIMIT = { rateLimit: { max: 120, timeWindow: 60_000 } };
 const BROWSER_LOGIN_RATE_LIMIT = { rateLimit: { max: 600, timeWindow: 60_000 } };
 /** Browser navigations: a JSON error page is useless there, app.ts redirects them instead. */
 export const BROWSER_AUTH_ROUTES = new Set(["/api/auth/login", "/api/auth/callback"]);
-// The CLI polls every few seconds while the player types the code: limited per login instead.
-// Needs the parsed body, hence the later hook.
+// The CLI polls every few seconds while the player types the code. Limited per IP here (a CLI
+// polls every 5 s: about 50 terminals logging in at once behind one IP), and per login in the
+// handler, since @fastify/rate-limit runs only one limiter per request.
 const POLL_RATE_LIMIT = {
   rateLimit: {
-    hook: "preHandler" as const,
-    max: 30,
+    max: 600,
     timeWindow: 60_000,
-    keyGenerator: (request: FastifyRequest) =>
-      `poll:${(request.body as { handle?: unknown } | undefined)?.handle}`,
+    keyGenerator: (request: FastifyRequest) => `poll-ip:${request.ip}`,
   },
 };
+const POLLS_PER_LOGIN = 30;
+const POLL_WINDOW_MS = 60_000;
 
 const randomToken = () => randomBytes(32).toString("base64url");
 export const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
@@ -236,7 +237,19 @@ export function registerAuth(app: FastifyInstance, { db, provider, publicUrl, no
         deviceCode: string;
         interval: number;
         lastPollAt: number;
+        windowStart?: number;
+        polls?: number;
       };
+      if (now() - (data.windowStart ?? 0) >= POLL_WINDOW_MS) {
+        data.windowStart = now();
+        data.polls = 0;
+      }
+      data.polls = (data.polls ?? 0) + 1;
+      db.prepare("UPDATE auth_requests SET data = ? WHERE id = ?").run(
+        JSON.stringify(data),
+        handle,
+      );
+      if (data.polls > POLLS_PER_LOGIN) return sendError(reply, 429, "rate_limited");
       // Polling faster than Microsoft allows would get us slowed down: answer locally.
       if (now() - data.lastPollAt < data.interval * 1000) {
         return { status: "pending", interval: data.interval };
