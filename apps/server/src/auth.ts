@@ -41,6 +41,8 @@ const POLL_RATE_LIMIT = {
 const POLLS_PER_LOGIN = 30;
 const POLL_WINDOW_MS = 60_000;
 
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
 const randomToken = () => randomBytes(32).toString("base64url");
 export const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
 
@@ -104,6 +106,15 @@ export interface AuthOptions {
 export function registerAuth(app: FastifyInstance, { db, provider, publicUrl, now }: AuthOptions) {
   const secure = publicUrl.startsWith("https://");
   const redirectUri = `${publicUrl}/api/auth/callback`;
+
+  // CSRF, on top of SameSite=Lax and JSON bodies: a browser always sends Origin on a cross-site
+  // POST, so a write from another site is refused. The CLI sends no Origin.
+  app.addHook("onRequest", async (request, reply) => {
+    if (SAFE_METHODS.has(request.method)) return;
+    const origin = request.headers.origin;
+    if (origin !== undefined && origin !== publicUrl)
+      return sendError(reply, 403, "forbidden_origin");
+  });
 
   app.decorateRequest("user", null);
   app.addHook("onRequest", async (request) => {

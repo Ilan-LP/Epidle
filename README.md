@@ -20,7 +20,7 @@ pnpm dev   # server on http://localhost:3000 + web client on http://localhost:51
 pnpm cli   # terminal client from source, needs the server running
 ```
 
-The web client proxies `/api` to the server, so open http://localhost:5173. Logging in needs the Entra settings below; without them the login page shows but the Microsoft redirect fails.
+The web client proxies `/api` to the server, so open http://localhost:5173 (exactly this origin, it must match `PUBLIC_URL` or the server refuses writes). Logging in needs the Entra settings below; without them the login page shows but the Microsoft redirect fails.
 
 Run a single app:
 

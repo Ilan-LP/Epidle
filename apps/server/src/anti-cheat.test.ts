@@ -199,6 +199,38 @@ describe("unaffordable and locked purchases", () => {
   });
 });
 
+describe("cross-site requests", () => {
+  it("refuses writes from another origin, logout included", async () => {
+    for (const [method, url, payload] of [
+      ["POST", "/api/intent", { type: "buyRoom", requestId: "csrf-00001" }],
+      ["PUT", "/api/me/pseudo", { pseudo: "Pwned" }],
+      ["POST", "/api/auth/logout", undefined],
+    ] as const) {
+      const res = await t.app.inject({
+        method,
+        url,
+        payload,
+        headers: { ...t.auth(token), origin: "https://evil.example" },
+      });
+      expect(res.statusCode, url).toBe(403);
+      expect(res.json().error).toBe("forbidden_origin");
+    }
+    expect((await t.get(token, "/api/me")).json().pseudo).toBe("Cheater");
+  });
+
+  it("accepts writes from the site itself and from the CLI (no Origin)", async () => {
+    const same = await t.app.inject({
+      method: "POST",
+      url: "/api/intent",
+      payload: { type: "setStrictness", stage: "loc", level: 0, requestId: "same-00001" },
+      headers: { ...t.auth(token), origin: "http://localhost:5173" },
+    });
+    expect(same.statusCode).toBe(200);
+    const cli = await t.intent(token, { type: "setStrictness", stage: "loc", level: 1 });
+    expect(cli.statusCode).toBe(200);
+  });
+});
+
 describe("request spam", () => {
   it("rate limits intents per player, without blocking other players", async () => {
     const codes: number[] = [];

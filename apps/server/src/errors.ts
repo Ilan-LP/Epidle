@@ -8,6 +8,7 @@ export const API_ERRORS = {
   pseudo_forbidden: "Ce pseudo n'est pas autorisé.",
   pseudo_cooldown: "Tu as changé de pseudo il y a moins de 24 h, réessaie plus tard.",
   invalid_request: "Requête invalide.",
+  forbidden_origin: "Requête refusée : elle ne vient pas d'Epidle.",
   rate_limited: "Trop de requêtes, réessaie dans un instant.",
   replay: "Cette action a déjà été reçue.",
   auth_unavailable: "Connexion indisponible pour le moment.",
