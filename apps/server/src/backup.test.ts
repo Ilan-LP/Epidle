@@ -1,4 +1,4 @@
-import { mkdtempSync, readdirSync, rmSync } from "node:fs";
+import { mkdtempSync, readdirSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Database from "better-sqlite3";
@@ -30,4 +30,19 @@ describe("backups", () => {
     expect(copy.prepare("SELECT count(*) AS n FROM users").get()).toEqual({ n: 1 });
     copy.close();
   });
+
+  it.skipIf(process.platform === "win32")(
+    "keeps the database and its backups owner only",
+    async () => {
+      const live = join(dir, "perms.db");
+      const db = openDb(live);
+      db.prepare("INSERT INTO users (ms_oid, created_at) VALUES ('y', 0)").run();
+      const file = await backupRotate(db, join(dir, "perms-backups"), 3, Date.UTC(2026, 9, 24));
+      const mode = (f: string) => statSync(f).mode & 0o777;
+      expect(mode(live)).toBe(0o600);
+      expect(mode(`${live}-wal`)).toBe(0o600);
+      expect(mode(file)).toBe(0o600);
+      db.close();
+    },
+  );
 });

@@ -1,4 +1,4 @@
-import { mkdirSync, readdirSync, rmSync } from "node:fs";
+import { chmodSync, mkdirSync, readdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import type { Db } from "./db";
 
@@ -17,6 +17,7 @@ export function backupName(now: number): string {
 /** Writes a backup to `file`. */
 export async function backupTo(db: Db, file: string): Promise<void> {
   await db.backup(file);
+  chmodSync(file, 0o600);
 }
 
 /** Writes a timestamped backup in `dir` and deletes the oldest ones beyond `keep`. Returns the file. */
@@ -26,7 +27,7 @@ export async function backupRotate(
   keep: number,
   now: number,
 ): Promise<string> {
-  mkdirSync(dir, { recursive: true });
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
   const file = join(dir, backupName(now));
   await backupTo(db, file);
   const old = readdirSync(dir)
