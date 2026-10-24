@@ -120,7 +120,7 @@ export function Leaderboard({
           )}
           <T tone="dim">
             {scope === "season"
-              ? "Score = CA cumulé de la saison, mis à jour toutes les 30 s."
+              ? "Score = CA cumulé de la saison, mis à jour chaque minute."
               : "Somme des scores de toutes les saisons."}{" "}
             [↑↓] choisir · [Entrée] voir son build · [Échap] retour
           </T>

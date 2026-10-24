@@ -71,7 +71,7 @@ export function Leaderboard({ me, onAuthLost }: { me: string; onAuthLost: () => 
             )}
             <p className="dim small">
               {scope === "season"
-                ? "Score = CA cumulé de la saison, mis à jour toutes les 30 s."
+                ? "Score = CA cumulé de la saison, mis à jour chaque minute."
                 : "Somme des scores de toutes les saisons."}{" "}
               Clique un pseudo pour voir son build.
             </p>
