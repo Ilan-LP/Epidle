@@ -53,7 +53,7 @@ pnpm admin help                      # admin commands, see the runbook
 | `EPIDLE_SERVER_URL` | cli | `http://localhost:3000`, overridden by `--server`. https only, except localhost |
 | `EPIDLE_CONFIG` | cli | `~/.config/epidle/config.json` (`%APPDATA%\epidle` on Windows): session tokens and language |
 
-Server variables can go in `apps/server/.env` (loaded if present, see `apps/server/.env.example`).
+Server variables can go in `apps/server/.env` (loaded if present, see `apps/server/.env.example`). They are checked at start and a wrong value stops the server with a message: `PORT` and `BACKUP_KEEP` are integers, `PUBLIC_URL` is an origin in https (http only for localhost). With `NODE_ENV=production` (set in the Docker image) the server also refuses to start without the Entra ids or with an http `PUBLIC_URL`.
 
 ### Microsoft login (Entra ID)
 
