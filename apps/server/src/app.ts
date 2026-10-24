@@ -2,7 +2,7 @@ import { BlockList, isIPv4 } from "node:net";
 import type { HealthResponse } from "@epidle/core";
 import cookie from "@fastify/cookie";
 import rateLimit from "@fastify/rate-limit";
-import Fastify, { type FastifyError, type FastifyInstance } from "fastify";
+import Fastify, { type FastifyError, type FastifyInstance, type FastifyRequest } from "fastify";
 import { registerApi } from "./api";
 import { BROWSER_AUTH_ROUTES, registerAuth } from "./auth";
 import { backupRotate } from "./backup";
@@ -38,6 +38,26 @@ function trustCaddyHop(address: string, hop: number): boolean {
   return PRIVATE.check(v4, isIPv4(v4) ? "ipv4" : "ipv6");
 }
 
+/** Query strings of these routes carry one-time credentials (the OAuth code and state). */
+const SECRET_QUERY_ROUTES = new Set(["/api/auth/callback"]);
+
+export function redactUrl(url: string): string {
+  const q = url.indexOf("?");
+  if (q === -1) return url;
+  return SECRET_QUERY_ROUTES.has(url.slice(0, q)) ? `${url.slice(0, q)}?[redacted]` : url;
+}
+
+/** Fastify's default request log fields, with the callback query removed. */
+function serializeRequest(request: FastifyRequest) {
+  return {
+    method: request.method,
+    url: redactUrl(request.url),
+    host: request.host,
+    remoteAddress: request.ip,
+    remotePort: request.socket?.remotePort,
+  };
+}
+
 export type AppOptions = {
   db: Db;
   /** Null when Entra is not configured: login endpoints answer 503. */
@@ -58,7 +78,7 @@ export type AppOptions = {
 export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   const { db, now = Date.now, rotation = NO_MODIFIERS } = opts;
   const app = Fastify({
-    logger: opts.logger ?? false,
+    logger: opts.logger ? { serializers: { req: serializeRequest } } : false,
     trustProxy: opts.trustProxy ? trustCaddyHop : false,
     // Intents are a few dozen bytes.
     bodyLimit: 4096,
@@ -130,7 +150,7 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
       userId: request.user?.id ?? null,
       ip: request.ip,
       kind,
-      detail: `${request.method} ${request.url}`,
+      detail: `${request.method} ${redactUrl(request.url)}`,
     };
     if (flagSuspicious(db, suspicion, now())) request.log.warn(suspicion, "suspicious activity");
   });
