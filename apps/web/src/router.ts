@@ -10,6 +10,15 @@ export type Route =
   | { name: "pseudo" }
   | { name: "help" };
 
+/** A link pasted in a chat can be cut or garbled: a bad escape must not blank the page. */
+function playerRoute(raw: string): Route {
+  try {
+    return { name: "player", pseudo: decodeURIComponent(raw) };
+  } catch {
+    return { name: "leaderboard" };
+  }
+}
+
 export function parseHash(hash: string): Route {
   const parts = hash.replace(/^#\/?/, "").split("/");
   switch (parts[0]) {
@@ -18,9 +27,7 @@ export function parseHash(hash: string): Route {
     case "classement":
       return { name: "leaderboard" };
     case "joueur":
-      return parts[1]
-        ? { name: "player", pseudo: decodeURIComponent(parts[1]) }
-        : { name: "leaderboard" };
+      return parts[1] ? playerRoute(parts[1]) : { name: "leaderboard" };
     case "pseudo":
       return { name: "pseudo" };
     case "aide":

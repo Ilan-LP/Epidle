@@ -4,6 +4,7 @@ import { createSession, upsertUser } from "./auth";
 import { openDb } from "./db";
 import { AuthError, type DevicePoll, type IdentityProvider } from "./entra";
 import { NO_MODIFIERS, type Rotation } from "./modifiers";
+import { setPseudo } from "./pseudo";
 import { runMaintenance } from "./seasons";
 
 export function fakeProvider() {
@@ -96,7 +97,7 @@ export async function testApp({ rotation = NO_MODIFIERS }: { rotation?: Rotation
   /** Creates a player straight in the database: no login round trips, no auth rate limit. */
   function player(oid: string, pseudo: string): string {
     const id = upsertUser(db, { oid }, clock.t);
-    db.prepare("UPDATE users SET pseudo = ? WHERE id = ?").run(pseudo, id);
+    setPseudo(db, id, pseudo, clock.t);
     return createSession(db, id, clock.t);
   }
 
@@ -111,5 +112,8 @@ export async function testApp({ rotation = NO_MODIFIERS }: { rotation?: Rotation
   const get = (token: string, url: string) =>
     app.inject({ method: "GET", url, headers: auth(token) });
 
-  return { app, db, clock, fake, auth, login, player, intent, get };
+  /** What the maintenance job does every minute: rollover and live scores. */
+  const refresh = () => runMaintenance(db, clock.t, rotation);
+
+  return { app, db, clock, fake, auth, login, player, intent, get, refresh };
 }

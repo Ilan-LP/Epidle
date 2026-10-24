@@ -3,6 +3,7 @@
 // cosmetic languages. No UI code.
 
 export * from "./api";
+export * from "./awards";
 export * from "./feed";
 export * from "./format";
 export * from "./languages";

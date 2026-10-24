@@ -1,4 +1,5 @@
 import { BALANCE } from "@epidle/core";
+import { grantAwards } from "./awards";
 import type { Db } from "./db";
 import { refreshScores, type Season } from "./games";
 import { NO_MODIFIERS, type Rotation, seasonWeeks } from "./modifiers";
@@ -39,10 +40,20 @@ function openSeason(db: Db, startsAt: number, rotation: Rotation): Season {
   })();
 }
 
+/**
+ * With an anchor, season boundaries are anchor + k * season length (any integer k), so seasons
+ * start at a chosen day and hour instead of whenever the server first started.
+ * The latest boundary at or before `now`.
+ */
+export function anchoredStart(anchor: number, now: number): number {
+  return anchor + Math.floor((now - anchor) / SEASON_MS) * SEASON_MS;
+}
+
 /** Freezes every company at the season end: their final score is their revenue at that time. */
 function closeSeason(db: Db, season: Season, now: number): void {
   db.transaction(() => {
     refreshScores(db, season, season.endsAt);
+    grantAwards(db, season);
     db.prepare("UPDATE seasons SET closed_at = ? WHERE id = ?").run(now, season.id);
   })();
 }
@@ -51,24 +62,44 @@ function closeSeason(db: Db, season: Season, now: number): void {
  * The season running at `now`, closing finished ones and opening the next if needed.
  * Called on every request and by the periodic job, so a rollover never depends on the timer.
  */
-export function currentSeason(db: Db, now: number, rotation: Rotation = NO_MODIFIERS): Season {
+export function currentSeason(
+  db: Db,
+  now: number,
+  rotation: Rotation = NO_MODIFIERS,
+  anchor: number | null = null,
+): Season {
   let season = latestSeason(db);
-  if (!season) return openSeason(db, now, rotation);
+  // Before the anchor, the first season is a shorter one ending at the anchor.
+  if (!season) return openSeason(db, anchor === null ? now : anchoredStart(anchor, now), rotation);
   while (now >= season.endsAt) {
     if (season.closedAt === null) closeSeason(db, season, now);
     // Seasons follow each other with no gap. If the server was down for a whole season,
     // the next one starts now instead of creating empty seasons.
-    const next = now < season.endsAt + SEASON_MS ? season.endsAt : now;
+    const next =
+      now < season.endsAt + SEASON_MS
+        ? season.endsAt
+        : anchor === null
+          ? now
+          : anchoredStart(anchor, now);
     season = openSeason(db, next, rotation);
   }
   return season;
 }
 
-/** Periodic job: season rollover, live scores, cleanup of expired rows. */
-export function runMaintenance(db: Db, now: number, rotation: Rotation = NO_MODIFIERS): void {
-  const season = currentSeason(db, now, rotation);
-  refreshScores(db, season, now);
+/**
+ * Periodic job: season rollover, live scores, cleanup of expired rows.
+ * Returns the user ids whose stored company could not be read (see refreshScores).
+ */
+export function runMaintenance(
+  db: Db,
+  now: number,
+  rotation: Rotation = NO_MODIFIERS,
+  anchor: number | null = null,
+): number[] {
+  const season = currentSeason(db, now, rotation, anchor);
+  const corrupted = refreshScores(db, season, now);
   db.prepare("DELETE FROM sessions WHERE expires_at <= ?").run(now);
   db.prepare("DELETE FROM auth_requests WHERE expires_at <= ?").run(now);
   db.prepare("DELETE FROM intent_requests WHERE created_at <= ?").run(now - REQUEST_ID_TTL_MS);
+  return corrupted;
 }

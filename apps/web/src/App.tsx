@@ -47,8 +47,8 @@ export function App() {
     check();
   }, [check]);
 
-  const logout = useCallback(async () => {
-    await api.logout().catch(() => undefined);
+  const logout = useCallback(async (everywhere = false) => {
+    await api.logout(everywhere).catch(() => undefined);
     setAuth({ status: "anon" });
   }, []);
 

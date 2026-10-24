@@ -1,16 +1,25 @@
 # Production: docker compose up -d --build. See the runbook in README.md.
 # Settings come from .env next to this file (copy .env.example).
+# JSON request logs grow fast: keep at most 5 x 10 MB per container.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 services:
   server:
     build:
       context: .
       target: server
     restart: unless-stopped
+    logging: *logging
     environment:
       PUBLIC_URL: https://${EPIDLE_SITE:-localhost}
       ENTRA_TENANT_ID: ${ENTRA_TENANT_ID:-}
       ENTRA_CLIENT_ID: ${ENTRA_CLIENT_ID:-}
       ENTRA_CLIENT_SECRET: ${ENTRA_CLIENT_SECRET:-}
+      SEASON_START: ${SEASON_START:-}
       BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-6}
       BACKUP_KEEP: ${BACKUP_KEEP:-28}
     volumes:
@@ -27,6 +36,13 @@ services:
       context: .
       target: web
     restart: unless-stopped
+    logging: *logging
+    # Caddy's admin API answers on localhost inside the container while Caddy runs.
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2019/config/"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
     environment:
       EPIDLE_SITE: ${EPIDLE_SITE:-localhost}
     ports:

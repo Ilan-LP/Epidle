@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { Db } from "./db";
-import { AuthError, type Identity, type IdentityProvider } from "./entra";
+import type { Identity, IdentityProvider } from "./entra";
 import { sendError } from "./errors";
 
 export interface AuthUser {
@@ -16,24 +16,34 @@ declare module "fastify" {
   }
 }
 
-export const SESSION_COOKIE = "epidle_session";
+/** On https, "__Host-": the browser refuses it from a subdomain or without Secure. */
+export const sessionCookie = (secure: boolean) =>
+  secure ? "__Host-epidle_session" : "epidle_session";
 /** Binds a web login to the browser that started it (login CSRF). */
 const LOGIN_COOKIE = "epidle_login";
 const SESSION_MS = 30 * 24 * 3600 * 1000;
 const LOGIN_MS = 10 * 60 * 1000;
 // Per IP: a whole campus behind one NAT can log in at the same time, so not too tight.
+// The device code start calls Microsoft, the browser routes only touch our database.
 const AUTH_RATE_LIMIT = { rateLimit: { max: 120, timeWindow: 60_000 } };
-// The CLI polls every few seconds while the player types the code: limited per login instead.
-// Needs the parsed body, hence the later hook.
+/** A web login is 2 requests: this is about 300 logins a minute from one campus IP. */
+const BROWSER_LOGIN_RATE_LIMIT = { rateLimit: { max: 600, timeWindow: 60_000 } };
+/** Browser navigations: a JSON error page is useless there, app.ts redirects them instead. */
+export const BROWSER_AUTH_ROUTES = new Set(["/api/auth/login", "/api/auth/callback"]);
+// The CLI polls every few seconds while the player types the code. Limited per IP here (a CLI
+// polls every 5 s: about 50 terminals logging in at once behind one IP), and per login in the
+// handler, since @fastify/rate-limit runs only one limiter per request.
 const POLL_RATE_LIMIT = {
   rateLimit: {
-    hook: "preHandler" as const,
-    max: 30,
+    max: 600,
     timeWindow: 60_000,
-    keyGenerator: (request: FastifyRequest) =>
-      `poll:${(request.body as { handle?: unknown } | undefined)?.handle}`,
+    keyGenerator: (request: FastifyRequest) => `poll-ip:${request.ip}`,
   },
 };
+const POLLS_PER_LOGIN = 30;
+const POLL_WINDOW_MS = 60_000;
+
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 const randomToken = () => randomBytes(32).toString("base64url");
 export const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
@@ -73,10 +83,10 @@ export function upsertUser(db: Db, identity: Identity, now: number): number {
 export const isBanned = (db: Db, identity: Identity): boolean =>
   !!db.prepare("SELECT 1 FROM bans WHERE ms_oid = ?").get(identity.oid);
 
-function sessionToken(request: FastifyRequest): string | null {
+function sessionToken(request: FastifyRequest, cookieName: string): string | null {
   const header = request.headers.authorization;
   if (header?.startsWith("Bearer ")) return header.slice(7).trim() || null;
-  return request.cookies[SESSION_COOKIE] ?? null;
+  return request.cookies[cookieName] ?? null;
 }
 
 /** Removes the pending request and returns its data, or null if missing or expired. */
@@ -97,11 +107,21 @@ export interface AuthOptions {
 
 export function registerAuth(app: FastifyInstance, { db, provider, publicUrl, now }: AuthOptions) {
   const secure = publicUrl.startsWith("https://");
+  const SESSION_COOKIE = sessionCookie(secure);
   const redirectUri = `${publicUrl}/api/auth/callback`;
+
+  // CSRF, on top of SameSite=Lax and JSON bodies: a browser always sends Origin on a cross-site
+  // POST, so a write from another site is refused. The CLI sends no Origin.
+  app.addHook("onRequest", async (request, reply) => {
+    if (SAFE_METHODS.has(request.method)) return;
+    const origin = request.headers.origin;
+    if (origin !== undefined && origin !== publicUrl)
+      return sendError(reply, 403, "forbidden_origin");
+  });
 
   app.decorateRequest("user", null);
   app.addHook("onRequest", async (request) => {
-    const token = sessionToken(request);
+    const token = sessionToken(request, SESSION_COOKIE);
     request.user = token ? findSessionUser(db, token, now()) : null;
   });
 
@@ -115,7 +135,7 @@ export function registerAuth(app: FastifyInstance, { db, provider, publicUrl, no
     });
 
   // Web: authorization code + PKCE, the server holds the verifier.
-  app.get("/api/auth/login", { config: AUTH_RATE_LIMIT }, async (_request, reply) => {
+  app.get("/api/auth/login", { config: BROWSER_LOGIN_RATE_LIMIT }, async (_request, reply) => {
     if (!provider) return sendError(reply, 503, "auth_unavailable");
     const state = randomToken();
     const nonce = randomToken();
@@ -137,7 +157,7 @@ export function registerAuth(app: FastifyInstance, { db, provider, publicUrl, no
   app.get<{ Querystring: { code?: string; state?: string; error?: string } }>(
     "/api/auth/callback",
     {
-      config: AUTH_RATE_LIMIT,
+      config: BROWSER_LOGIN_RATE_LIMIT,
       schema: {
         querystring: {
           type: "object",
@@ -169,17 +189,24 @@ export function registerAuth(app: FastifyInstance, { db, provider, publicUrl, no
         setSessionCookie(reply, createSession(db, upsertUser(db, identity, now()), now()));
         return reply.redirect(`${publicUrl}/`);
       } catch (e) {
-        if (!(e instanceof AuthError)) throw e;
-        request.log.warn({ err: e.message }, "web login failed");
+        // A refused token (AuthError) or Microsoft unreachable: back to the login page either way.
+        request.log.warn({ err: (e as Error).message }, "web login failed");
         return fail();
       }
     },
   );
 
   // CLI: device code flow, proxied so the CLI only knows an opaque handle.
-  app.post("/api/auth/device", { config: AUTH_RATE_LIMIT }, async (_request, reply) => {
+  app.post("/api/auth/device", { config: AUTH_RATE_LIMIT }, async (request, reply) => {
     if (!provider) return sendError(reply, 503, "auth_unavailable");
-    const start = await provider.startDeviceCode();
+    let start: Awaited<ReturnType<IdentityProvider["startDeviceCode"]>>;
+    try {
+      start = await provider.startDeviceCode();
+    } catch (e) {
+      // Microsoft unreachable or refusing: a clear "try later", not a 500.
+      request.log.warn({ err: (e as Error).message }, "device code start failed");
+      return sendError(reply, 503, "auth_unavailable");
+    }
     const handle = randomToken();
     db.prepare(
       "INSERT INTO auth_requests (id, kind, data, expires_at) VALUES (?, 'device', ?, ?)",
@@ -224,12 +251,36 @@ export function registerAuth(app: FastifyInstance, { db, provider, publicUrl, no
         deviceCode: string;
         interval: number;
         lastPollAt: number;
+        windowStart?: number;
+        polls?: number;
       };
+      if (now() - (data.windowStart ?? 0) >= POLL_WINDOW_MS) {
+        data.windowStart = now();
+        data.polls = 0;
+      }
+      data.polls = (data.polls ?? 0) + 1;
+      db.prepare("UPDATE auth_requests SET data = ? WHERE id = ?").run(
+        JSON.stringify(data),
+        handle,
+      );
+      if (data.polls > POLLS_PER_LOGIN) return sendError(reply, 429, "rate_limited");
       // Polling faster than Microsoft allows would get us slowed down: answer locally.
       if (now() - data.lastPollAt < data.interval * 1000) {
         return { status: "pending", interval: data.interval };
       }
-      const result = await provider.pollDeviceCode(data.deviceCode);
+      let result: Awaited<ReturnType<IdentityProvider["pollDeviceCode"]>>;
+      try {
+        result = await provider.pollDeviceCode(data.deviceCode);
+      } catch (e) {
+        // The login stays pending: the CLI retries on 503, at most once per interval.
+        request.log.warn({ err: (e as Error).message }, "device code poll failed");
+        data.lastPollAt = now();
+        db.prepare("UPDATE auth_requests SET data = ? WHERE id = ?").run(
+          JSON.stringify(data),
+          handle,
+        );
+        return sendError(reply, 503, "auth_unavailable");
+      }
       if (result.status === "pending" || result.status === "slow_down") {
         if (result.status === "slow_down") data.interval += 5;
         data.lastPollAt = now();
@@ -250,12 +301,29 @@ export function registerAuth(app: FastifyInstance, { db, provider, publicUrl, no
     },
   );
 
-  app.post("/api/auth/logout", async (request, reply) => {
-    const token = sessionToken(request);
-    if (token) db.prepare("DELETE FROM sessions WHERE token_hash = ?").run(hashToken(token));
-    reply.clearCookie(SESSION_COOKIE, { path: "/" });
-    return reply.code(204).send();
-  });
+  // ?all=1 ends every session of the player: a lost laptop with the CLI logged in, a shared PC.
+  app.post<{ Querystring: { all?: "1" } }>(
+    "/api/auth/logout",
+    {
+      schema: {
+        querystring: {
+          type: "object",
+          additionalProperties: false,
+          properties: { all: { type: "string", enum: ["1"] } },
+        },
+      },
+    },
+    async (request, reply) => {
+      const token = sessionToken(request, SESSION_COOKIE);
+      if (token && request.query.all === "1" && request.user) {
+        db.prepare("DELETE FROM sessions WHERE user_id = ?").run(request.user.id);
+      } else if (token) {
+        db.prepare("DELETE FROM sessions WHERE token_hash = ?").run(hashToken(token));
+      }
+      reply.clearCookie(SESSION_COOKIE, { path: "/", secure });
+      return reply.code(204).send();
+    },
+  );
 }
 
 export async function requireUser(request: FastifyRequest, reply: FastifyReply) {

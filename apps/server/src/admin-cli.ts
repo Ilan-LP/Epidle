@@ -14,6 +14,7 @@ try {
     db,
     now: Date.now(),
     rotation: loadRotation(config.modifiersPath),
+    seasonAnchor: config.seasonAnchor,
     backup: config.backup,
     out: (line) => console.log(line),
   });

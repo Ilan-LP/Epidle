@@ -1,7 +1,10 @@
 import { parseArgs } from "node:util";
 
-/** Replaced by the production URL before publishing to npm. */
-export const DEFAULT_SERVER_URL = "http://localhost:3000";
+/** Set by build.mjs from EPIDLE_PUBLISH_SERVER_URL for the published CLI. */
+declare const __DEFAULT_SERVER_URL__: string | undefined;
+
+export const DEFAULT_SERVER_URL =
+  typeof __DEFAULT_SERVER_URL__ === "string" ? __DEFAULT_SERVER_URL__ : "http://localhost:3000";
 
 export type Command = "play" | "logout" | "help" | "version";
 

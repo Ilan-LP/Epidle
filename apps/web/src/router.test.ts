@@ -18,5 +18,7 @@ describe("router", () => {
     expect(parseHash("")).toEqual({ name: "dashboard" });
     expect(parseHash("#/nope")).toEqual({ name: "dashboard" });
     expect(parseHash("#/joueur/")).toEqual({ name: "leaderboard" });
+    // Cut in the middle of an escape, as a chat app may do.
+    expect(parseHash("#/joueur/%E0%A4%A")).toEqual({ name: "leaderboard" });
   });
 });

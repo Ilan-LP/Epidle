@@ -29,6 +29,7 @@ const RULES = [
   "Une mouli attrape une partie des bugs, mais elle a une capacité. Le surplus part sans vérification.",
   "Former un dev double sa production, et chaque niveau prend deux fois plus de temps.",
   "Tout continue quand tu n'es pas là. Le score est le CA cumulé de la saison (14 jours).",
+  "En fin de saison tout repart à zéro, sauf tes badges : top 10, Licorne, dev Légende.",
   "Cliquer ne sert à rien : ce sont tes décisions qui comptent.",
 ];
 
@@ -40,15 +41,18 @@ export function Help({
 }: {
   pseudo: string;
   navigate: Navigate;
-  onLogout: () => void;
+  onLogout: (everywhere?: boolean) => void;
   wide: boolean;
 }) {
   const { server } = useClient();
-  const [confirm, setConfirm] = useState(false);
+  // The key pressed once, waiting for the same key again to confirm.
+  const [confirm, setConfirm] = useState<"d" | "a" | null>(null);
+  const ask = (key: "d" | "a") => () => (confirm === key ? onLogout(key === "a") : setConfirm(key));
   useKeys({
     p: () => navigate({ name: "pseudo" }),
-    d: () => (confirm ? onLogout() : setConfirm(true)),
-    escape: () => (confirm ? setConfirm(false) : navigate({ name: "dashboard" })),
+    d: ask("d"),
+    a: ask("a"),
+    escape: () => (confirm ? setConfirm(null) : navigate({ name: "dashboard" })),
   });
 
   return (
@@ -65,10 +69,16 @@ export function Help({
           </Text>
           <Text>
             <K k="p" /> changer de pseudo <K k="d" />{" "}
-            {confirm ? (
+            {confirm === "d" ? (
               <T tone="warn">appuie encore sur d pour te déconnecter</T>
             ) : (
               "se déconnecter"
+            )}{" "}
+            <K k="a" />{" "}
+            {confirm === "a" ? (
+              <T tone="warn">appuie encore sur a pour te déconnecter partout</T>
+            ) : (
+              "partout"
             )}
           </Text>
           <T tone="dim">

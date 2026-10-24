@@ -61,6 +61,64 @@ export function createInitialState(cfg: Balance = BALANCE): GameState {
   };
 }
 
+const isFiniteNumber = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
+const isCount = (v: unknown): v is number => Number.isInteger(v) && (v as number) >= 0;
+
+/**
+ * Whether a value read back from storage is a usable state: right shape, finite numbers,
+ * levels and stages within the balance. Never throws.
+ */
+export function isGameState(value: unknown, cfg: Balance = BALANCE): value is GameState {
+  if (typeof value !== "object" || value === null) return false;
+  const s = value as Record<string, unknown>;
+  const maxLevel = cfg.levels.length - 1;
+  const devOk = (d: unknown): boolean => {
+    if (typeof d !== "object" || d === null) return false;
+    const dev = d as Record<string, unknown>;
+    if (!isCount(dev.id) || !isCount(dev.level) || (dev.level as number) > maxLevel) return false;
+    if (typeof dev.kind !== "string" || !Object.hasOwn(cfg.hire.kinds, dev.kind)) return false;
+    if (dev.training === null) return true;
+    if (typeof dev.training !== "object" || dev.training === undefined) return false;
+    const t = dev.training as Record<string, unknown>;
+    return (
+      isCount(t.targetLevel) &&
+      (t.targetLevel as number) <= maxLevel &&
+      isFiniteNumber(t.levelEndsAt)
+    );
+  };
+  const stageOk = (st: unknown): boolean => {
+    if (typeof st !== "object" || st === null) return false;
+    const stage = st as Record<string, unknown>;
+    return (
+      isCount(stage.instances) &&
+      isCount(stage.version) &&
+      isCount(stage.strictness) &&
+      (stage.strictness as number) < cfg.strictness.length
+    );
+  };
+  const stats = s.stats as Record<string, unknown> | null | undefined;
+  return (
+    isFiniteNumber(s.time) &&
+    isFiniteNumber(s.money) &&
+    isFiniteNumber(s.revenue) &&
+    isCount(s.nextDevId) &&
+    isCount(s.rooms) &&
+    isCount(s.tier) &&
+    (s.tier as number) < cfg.tiers.length &&
+    Array.isArray(s.devs) &&
+    s.devs.every(devOk) &&
+    Array.isArray(s.stages) &&
+    s.stages.length === cfg.stages.length &&
+    s.stages.every(stageOk) &&
+    Array.isArray(s.tierUnlockedAt) &&
+    s.tierUnlockedAt.every(isFiniteNumber) &&
+    typeof stats === "object" &&
+    stats !== null &&
+    isFiniteNumber(stats.locWritten) &&
+    isFiniteNumber(stats.bugsShipped)
+  );
+}
+
 /** Deep copy. States are treated as immutable: every core function returns a new one. */
 export function cloneState(state: GameState): GameState {
   return {

@@ -20,7 +20,7 @@ pnpm dev   # server on http://localhost:3000 + web client on http://localhost:51
 pnpm cli   # terminal client from source, needs the server running
 ```
 
-The web client proxies `/api` to the server, so open http://localhost:5173. Logging in needs the Entra settings below; without them the login page shows but the Microsoft redirect fails.
+The web client proxies `/api` to the server, so open http://localhost:5173 (exactly this origin, it must match `PUBLIC_URL` or the server refuses writes). Logging in needs the Entra settings below; without them the login page shows but the Microsoft redirect fails.
 
 Run a single app:
 
@@ -46,6 +46,7 @@ pnpm admin help                      # admin commands, see the runbook
 | `ENTRA_CLIENT_ID` | server | none, application (client) id of the Epidle app registration |
 | `ENTRA_CLIENT_SECRET` | server | none, only if the redirect URI is registered on the "Web" platform |
 | `TRUST_PROXY` | server | unset, `1` behind a reverse proxy so rate limits see real IPs |
+| `SEASON_START` | server | unset: the first season starts at the first server start. An ISO date with offset (`2026-11-02T18:00:00+01:00`): seasons start at this date plus whole seasons; before it, a shorter first season ends at it |
 | `MODIFIERS_PATH` | server | `apps/server/modifiers.json`, the weekly modifiers |
 | `BACKUP_DIR` | server | `backups/` next to the database. Empty string: no automatic backups |
 | `BACKUP_INTERVAL_HOURS` | server | `6`, plus one backup at every start |
@@ -53,7 +54,7 @@ pnpm admin help                      # admin commands, see the runbook
 | `EPIDLE_SERVER_URL` | cli | `http://localhost:3000`, overridden by `--server`. https only, except localhost |
 | `EPIDLE_CONFIG` | cli | `~/.config/epidle/config.json` (`%APPDATA%\epidle` on Windows): session tokens and language |
 
-Server variables can go in `apps/server/.env` (loaded if present, see `apps/server/.env.example`).
+Server variables can go in `apps/server/.env` (loaded if present, see `apps/server/.env.example`). They are checked at start and a wrong value stops the server with a message: `PORT` and `BACKUP_KEEP` are integers, `PUBLIC_URL` is an origin in https (http only for localhost). With `NODE_ENV=production` (set in the Docker image) the server also refuses to start without the Entra ids or with an http `PUBLIC_URL`.
 
 ### Microsoft login (Entra ID)
 
@@ -76,17 +77,19 @@ All routes are under `/api`, JSON in and out, errors are `{ error, message }` wi
 |---|---|---|
 | `GET /auth/login`, `GET /auth/callback` | none | Web login, authorization code + PKCE |
 | `POST /auth/device`, `POST /auth/device/token` | none | CLI login, device code; poll `token` with the returned `handle` until `status: "ok"` |
-| `POST /auth/logout` | session | Revokes the session |
-| `GET /me`, `PUT /me/pseudo` | session | Pseudo, 3-16 chars `[A-Za-z0-9_-]`, unique ignoring case, required to play |
+| `POST /auth/logout[?all=1]` | session | Revokes the session, or every session of the player with `all=1` |
+| `GET /me`, `PUT /me/pseudo` | session | Pseudo, 3-16 chars `[A-Za-z0-9_-]`, required to play. Unique ignoring case, `_`, `-` and lookalikes (0/o, 1/i/l); 422 `pseudo_forbidden` (blocklist), 409 `pseudo_cooldown` (24 h between renames) or `pseudo_taken` (also a pseudo given up less than 14 days ago) |
 | `GET /state` | player | Company caught up to server time, season with its weekly modifiers, rates |
 | `POST /intent` | player | `{ type, requestId, ... }`: `hire`, `train`, `buyRoom`, `buyMouli`, `upgradeMouli`, `setStrictness`. `count` (1-100) on repeatable ones. 422 when the game refuses, 409 on a reused `requestId` |
-| `GET /leaderboard?scope=season\|alltime` | player | Top 50 and my rank |
-| `GET /players/:pseudo/build` | player | Public build: team by kind and level, rooms, mouli stages and strictness. No money |
+| `GET /leaderboard?scope=season\|alltime` | player | Top 50 with each player's title (best badge of a past season) and my rank |
+| `GET /players/:pseudo/build` | player | Public build: team by kind and level, rooms, mouli stages and strictness, badges. No money |
 | `GET /feed` | player | This week: its modifier, events (tiers from PME, first dev from Lead, new leader, top 10 entries), top 5 climbers, players who joined |
 
-Seasons roll over on the first request after the end and in a job that runs every minute.
+Seasons roll over on the first request after the end and in a job that runs every minute; the same job refreshes leaderboard scores. At the close, the top 10, players at the last tier and players with a Légende dev get a badge.
 
-Rate limits, per player when logged in, per IP otherwise: 300 requests/min overall, 30 intents per 10 s, 60/min on `/state` and builds, 30/min on the leaderboard and the feed, 120 auth requests/min per IP. A banned account gets 403 `banned` at login.
+Writes (POST, PUT) with an `Origin` other than `PUBLIC_URL` are refused with 403 `forbidden_origin`.
+
+Rate limits, per player when logged in, per IP otherwise: 300 requests/min overall, 30 intents per 10 s, 60/min on `/state` and builds, 30/min on the leaderboard and the feed. Per IP: 600/min on the web login and callback (a 429 there redirects to `/?login=error`), 120/min device code starts, 600/min device code polls and 30/min per login. A banned account gets 403 `banned` at login.
 
 ### Weekly modifiers
 
@@ -131,7 +134,7 @@ Same screens and rules as the web client, in Ink, fully keyboard driven. Shares 
 
 - **Login:** device code flow. The CLI shows a Microsoft URL and a code (`o` opens the browser), and polls the server until the player has logged in. The session token is saved per server in `EPIDLE_CONFIG`, readable by its owner only (0600).
 - **Shortcuts:** same as the web (`t b c ? l`, `y e f 1-4`, shop `1-8 x`, `v`, `Esc`), plus `q` quit, arrows to pick the dev and the target level of a training, `↑↓ Enter` to buy any shop line or open a player's build, `Tab` to switch between company and pipeline on terminals under 110 columns, `PgUp/PgDn` to scroll small terminals. The AZERTY digit row works without Shift.
-- **Publishing:** set `DEFAULT_SERVER_URL` in `apps/cli/src/args.ts` to the production URL, then `npm publish` from `apps/cli` (`prepack` builds the bundle). Only `dist/epidle.js` ships: the workspace packages are bundled in, `ink`, `react` and `chalk` are regular dependencies.
+- **Publishing:** `EPIDLE_PUBLISH_SERVER_URL=https://<EPIDLE_SITE> npm publish` from `apps/cli`: `prepack` builds the bundle with that server as the default and refuses to build without an https URL. Only `dist/epidle.js` ships: the workspace packages are bundled in, `ink`, `react` and `chalk` are regular dependencies.
 
 ## Theming
 
@@ -186,7 +189,7 @@ cp .env.example .env        # EPIDLE_SITE, ENTRA_TENANT_ID, ENTRA_CLIENT_ID (+ s
 docker compose up -d --build
 ```
 
-Needs a DNS record for `EPIDLE_SITE` pointing to the machine and ports 80 and 443 open. The Entra redirect URI is then `https://<EPIDLE_SITE>/api/auth/callback`. For the CLI, set `DEFAULT_SERVER_URL` to `https://<EPIDLE_SITE>` before publishing.
+Needs a DNS record for `EPIDLE_SITE` pointing to the machine and ports 80 and 443 open. The Entra redirect URI is then `https://<EPIDLE_SITE>/api/auth/callback`. For the CLI, publish with `EPIDLE_PUBLISH_SERVER_URL=https://<EPIDLE_SITE>` (see Terminal client).
 
 ## Runbook
 
@@ -198,6 +201,7 @@ Commands run from the repository folder on the server machine. Below, `admin` st
 | Update | `git pull && docker compose up -d --build`. Migrations run on start. A database newer than the code refuses to open: never roll the code back past a migration without restoring a backup |
 | Change the weekly modifiers | Edit `apps/server/modifiers.json`, `docker compose restart server`, check `admin weeks`. Applies from the next season. A bad file stops the server at start: read the log, fix, restart |
 | Find a player | `admin players [text]`: pseudo, season score, number of suspicious events |
+| Offensive pseudo | `admin rename <pseudo> <new>` (no cooldown, no blocklist), or `admin remove <pseudo> --ban`. The blocklist is in `apps/server/src/pseudo.ts` |
 | Review scripting | `admin suspicious [--hours 72]`: grouped by player and kind, with the last detail |
 | Remove a player | `admin remove <pseudo>` shows what would go; with `--yes` it deletes the player, their companies, sessions and feed events, at once. They can log in again as a new player |
 | Ban a player | `admin remove <pseudo> --ban --reason "<why>" --yes`: same, and their Microsoft account is refused at login. `admin bans`, `admin unban <id>` |

@@ -1,9 +1,10 @@
+import { BlockList, isIPv4 } from "node:net";
 import type { HealthResponse } from "@epidle/core";
 import cookie from "@fastify/cookie";
 import rateLimit from "@fastify/rate-limit";
-import Fastify, { type FastifyError, type FastifyInstance } from "fastify";
+import Fastify, { type FastifyError, type FastifyInstance, type FastifyRequest } from "fastify";
 import { registerApi } from "./api";
-import { registerAuth } from "./auth";
+import { BROWSER_AUTH_ROUTES, registerAuth } from "./auth";
 import { backupRotate } from "./backup";
 import type { Db } from "./db";
 import type { IdentityProvider } from "./entra";
@@ -14,6 +15,49 @@ import { flagSuspicious, type SuspiciousKind, scanActivity } from "./suspicious"
 
 const SCAN_INTERVAL_MS = 3600_000;
 
+const PRIVATE = new BlockList();
+for (const [net, prefix] of [
+  ["127.0.0.0", 8],
+  ["10.0.0.0", 8],
+  ["172.16.0.0", 12],
+  ["192.168.0.0", 16],
+] as const) {
+  PRIVATE.addSubnet(net, prefix, "ipv4");
+}
+PRIVATE.addSubnet("::1", 128, "ipv6");
+PRIVATE.addSubnet("fc00::", 7, "ipv6");
+
+/**
+ * Only the direct peer is trusted, and only if it is on a private network (Caddy, on the Docker
+ * network): the client IP is then the last X-Forwarded-For entry, the one Caddy wrote. `true`
+ * would take the first entry, which any client can write itself.
+ */
+function trustCaddyHop(address: string, hop: number): boolean {
+  if (hop !== 0) return false;
+  const v4 = address.startsWith("::ffff:") ? address.slice(7) : address;
+  return PRIVATE.check(v4, isIPv4(v4) ? "ipv4" : "ipv6");
+}
+
+/** Query strings of these routes carry one-time credentials (the OAuth code and state). */
+const SECRET_QUERY_ROUTES = new Set(["/api/auth/callback"]);
+
+export function redactUrl(url: string): string {
+  const q = url.indexOf("?");
+  if (q === -1) return url;
+  return SECRET_QUERY_ROUTES.has(url.slice(0, q)) ? `${url.slice(0, q)}?[redacted]` : url;
+}
+
+/** Fastify's default request log fields, with the callback query removed. */
+function serializeRequest(request: FastifyRequest) {
+  return {
+    method: request.method,
+    url: redactUrl(request.url),
+    host: request.host,
+    remoteAddress: request.ip,
+    remotePort: request.socket?.remotePort,
+  };
+}
+
 export type AppOptions = {
   db: Db;
   /** Null when Entra is not configured: login endpoints answer 503. */
@@ -23,6 +67,8 @@ export type AppOptions = {
   now?: () => number;
   /** Weekly modifiers, from the config file. None by default. */
   rotation?: Rotation;
+  /** Season boundaries are this time (ms) plus whole seasons. Null: from the first start. */
+  seasonAnchor?: number | null;
   /** Runs the season rollover / cleanup job at this interval. Off when unset (tests). */
   maintenanceIntervalMs?: number;
   /** Periodic database backups. Off when unset (tests). */
@@ -34,8 +80,8 @@ export type AppOptions = {
 export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   const { db, now = Date.now, rotation = NO_MODIFIERS } = opts;
   const app = Fastify({
-    logger: opts.logger ?? false,
-    trustProxy: opts.trustProxy ?? false,
+    logger: opts.logger ? { serializers: { req: serializeRequest } } : false,
+    trustProxy: opts.trustProxy ? trustCaddyHop : false,
     // Intents are a few dozen bytes.
     bodyLimit: 4096,
     ajv: {
@@ -66,7 +112,13 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   registerAuth(app, { db, provider: opts.provider, publicUrl: opts.publicUrl, now });
 
   app.setErrorHandler((error: FastifyError, request, reply) => {
-    if (error.statusCode === 429) return sendError(reply, 429, "rate_limited");
+    if (error.statusCode === 429) {
+      // The player clicked a link: back to the login page with its error, not a JSON page.
+      if (BROWSER_AUTH_ROUTES.has(request.routeOptions.url ?? "")) {
+        return reply.redirect(`${opts.publicUrl}/?login=error`);
+      }
+      return sendError(reply, 429, "rate_limited");
+    }
     if (
       error.validation ||
       (error.statusCode && error.statusCode >= 400 && error.statusCode < 500)
@@ -82,7 +134,8 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
     return { status: "ok", db: "ok" };
   });
 
-  registerApi(app, db, now, rotation);
+  const anchor = opts.seasonAnchor ?? null;
+  registerApi(app, db, now, rotation, anchor);
 
   // Responses the official clients never cause. Logged for review, never blocked here.
   app.addHook("onResponse", async (request, reply) => {
@@ -100,7 +153,7 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
       userId: request.user?.id ?? null,
       ip: request.ip,
       kind,
-      detail: `${request.method} ${request.url}`,
+      detail: `${request.method} ${redactUrl(request.url)}`,
     };
     if (flagSuspicious(db, suspicion, now())) request.log.warn(suspicion, "suspicious activity");
   });
@@ -124,7 +177,15 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   });
 
   if (opts.maintenanceIntervalMs) {
-    every(opts.maintenanceIntervalMs, () => runMaintenance(db, now(), rotation), "maintenance");
+    every(
+      opts.maintenanceIntervalMs,
+      () => {
+        const corrupted = runMaintenance(db, now(), rotation, anchor);
+        if (corrupted.length)
+          app.log.error({ userIds: corrupted }, "corrupted game states skipped");
+      },
+      "maintenance",
+    );
     every(
       SCAN_INTERVAL_MS,
       () => {

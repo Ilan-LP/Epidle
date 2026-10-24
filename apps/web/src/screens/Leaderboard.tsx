@@ -1,4 +1,11 @@
-import { effectsText, feedText, feedTime, formatMoney, type Scope } from "@epidle/api-client";
+import {
+  awardText,
+  effectsText,
+  feedText,
+  feedTime,
+  formatMoney,
+  type Scope,
+} from "@epidle/api-client";
 import { useState } from "react";
 import { api } from "../api";
 import { usePolled } from "../hooks";
@@ -62,6 +69,7 @@ export function Leaderboard({ me, onAuthLost }: { me: string; onAuthLost: () => 
                       <td className="num">{e.rank}</td>
                       <td>
                         <a href={href({ name: "player", pseudo: e.pseudo })}>{e.pseudo}</a>
+                        {e.title && <span className="dim small"> {awardText(e.title)}</span>}
                       </td>
                       <td className="num">{formatMoney(e.score)}</td>
                     </tr>
@@ -71,7 +79,7 @@ export function Leaderboard({ me, onAuthLost }: { me: string; onAuthLost: () => 
             )}
             <p className="dim small">
               {scope === "season"
-                ? "Score = CA cumulé de la saison, mis à jour toutes les 30 s."
+                ? "Score = CA cumulé de la saison, mis à jour chaque minute."
                 : "Somme des scores de toutes les saisons."}{" "}
               Clique un pseudo pour voir son build.
             </p>

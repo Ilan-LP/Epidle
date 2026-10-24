@@ -1,7 +1,7 @@
 {
   "name": "epidle",
   "version": "0.1.0",
-  "description": "Epidle dans le terminal : monte ta bo\u00eete de dev, forme tes juniors, r\u00e8gle tes moulis.",
+  "description": "Epidle dans le terminal : monte ta boîte de dev, forme tes juniors, règle tes moulis.",
   "license": "MIT",
   "type": "module",
   "bin": {
@@ -15,8 +15,8 @@
   },
   "scripts": {
     "start": "tsx src/index.tsx",
-    "build": "esbuild src/index.tsx --bundle --platform=node --format=esm --target=node22 --jsx=automatic --external:chalk --external:ink --external:react --banner:js=\"#!/usr/bin/env node\" --outfile=dist/epidle.js",
-    "prepack": "pnpm build",
+    "build": "node build.mjs",
+    "prepack": "node build.mjs --publish",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {

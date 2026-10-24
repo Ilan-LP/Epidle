@@ -3,6 +3,7 @@ import { BALANCE } from "@epidle/core";
 import { backupRotate, backupTo } from "./backup";
 import type { Db } from "./db";
 import { type Rotation, seasonWeeks } from "./modifiers";
+import { PSEUDO_PATTERN, pseudoRefusal, setPseudo } from "./pseudo";
 import { currentSeason } from "./seasons";
 
 // Admin commands, run next to the server on the same database file (SQLite handles the
@@ -15,6 +16,8 @@ export const ADMIN_HELP = `Usage: pnpm admin <command>
                                      delete a player and all their data (company, sessions, feed).
                                      --ban also refuses their Microsoft account at login.
                                      Without --yes, only shows what would be deleted.
+  rename <pseudo> <new>              change a player's pseudo (offensive name): no cooldown, no
+                                     blocklist; the old one stays reserved for them for 14 days
   bans                               banned accounts
   unban <id>                         lift a ban (id from "bans")
   suspicious [--hours <n>]           signs of scripting in the last n hours (default 24)
@@ -26,6 +29,7 @@ export interface AdminContext {
   db: Db;
   now: number;
   rotation: Rotation;
+  seasonAnchor?: number | null;
   backup: { dir: string; keep: number } | null;
   out: (line: string) => void;
 }
@@ -103,11 +107,11 @@ export async function runAdmin(argv: string[], ctx: AdminContext): Promise<numbe
       help: { type: "boolean", short: "h", default: false },
     },
   });
-  const [command, arg] = positionals;
+  const [command, arg, arg2] = positionals;
 
   switch (values.help ? "help" : command) {
     case "players": {
-      const season = currentSeason(db, now, ctx.rotation);
+      const season = currentSeason(db, now, ctx.rotation, ctx.seasonAnchor);
       const rows = db
         .prepare(
           `SELECT u.id, u.pseudo, round(coalesce(g.score, 0)) AS score,
@@ -140,6 +144,25 @@ export async function runAdmin(argv: string[], ctx: AdminContext): Promise<numbe
         return 0;
       }
       out(`Removed ${what}.`);
+      return 0;
+    }
+    case "rename": {
+      if (!arg || !arg2) return usage(out, "rename needs a pseudo and the new one");
+      if (!new RegExp(PSEUDO_PATTERN).test(arg2)) return usage(out, `invalid pseudo ${arg2}`);
+      const user = db.prepare("SELECT id, pseudo FROM users WHERE pseudo = ?").get(arg) as
+        | { id: number; pseudo: string }
+        | undefined;
+      if (!user) {
+        out(`No player with pseudo ${arg}.`);
+        return 1;
+      }
+      const refusal = pseudoRefusal(db, user.id, arg2, now, true);
+      if (refusal) {
+        out(`Cannot rename ${user.pseudo} to ${arg2}: ${refusal}.`);
+        return 1;
+      }
+      setPseudo(db, user.id, arg2, now);
+      out(`Renamed ${user.pseudo} to ${arg2}.`);
       return 0;
     }
     case "bans":
@@ -190,7 +213,7 @@ export async function runAdmin(argv: string[], ctx: AdminContext): Promise<numbe
       return 0;
     }
     case "weeks": {
-      const season = currentSeason(db, now, ctx.rotation);
+      const season = currentSeason(db, now, ctx.rotation, ctx.seasonAnchor);
       const weekMs = BALANCE.weekSeconds * 1000;
       const show = (id: number, weeks: typeof season.weeks, startsAt: number) =>
         weeks.forEach((m, w) => {

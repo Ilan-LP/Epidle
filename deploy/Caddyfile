@@ -23,6 +23,12 @@
 		X-Content-Type-Options nosniff
 		X-Frame-Options DENY
 		Referrer-Policy strict-origin-when-cross-origin
+		# HTTPS only for a year once seen, so a hostile Wi-Fi cannot strip it on the next visit.
+		Strict-Transport-Security "max-age=31536000"
+		# Only our own scripts and API. 'unsafe-inline' for styles: the theme <style> injected
+		# by vite.config.ts and React style attributes. data: for the favicon and inlined SVGs.
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), interest-cohort=()"
 		-Server
 	}
 }

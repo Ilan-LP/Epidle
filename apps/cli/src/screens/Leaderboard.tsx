@@ -1,4 +1,11 @@
-import { effectsText, feedText, feedTime, formatMoney, type Scope } from "@epidle/api-client";
+import {
+  awardText,
+  effectsText,
+  feedText,
+  feedTime,
+  formatMoney,
+  type Scope,
+} from "@epidle/api-client";
 import { usePolled } from "@epidle/api-client/react";
 import { Box, Text, useWindowSize } from "ink";
 import { useState } from "react";
@@ -99,10 +106,12 @@ export function Leaderboard({
                 {"  "}
                 {col("#", 5, true)} {col("Pseudo", 17)}
                 {col("Score", 14, true)}
+                {"  Titre"}
               </T>
               {shown.map((e, i) => {
                 const isSelected = first + i === selected;
-                const line = `${col(String(e.rank), 5, true)} ${col(e.pseudo, 17)}${col(formatMoney(e.score), 14, true)}`;
+                const title = e.title ? `  ${awardText(e.title)}` : "";
+                const line = `${col(String(e.rank), 5, true)} ${col(e.pseudo, 17)}${col(formatMoney(e.score), 14, true)}${title}`;
                 return (
                   <Text key={e.pseudo} wrap="truncate">
                     {isSelected ? <Text bold>› </Text> : "  "}
@@ -120,7 +129,7 @@ export function Leaderboard({
           )}
           <T tone="dim">
             {scope === "season"
-              ? "Score = CA cumulé de la saison, mis à jour toutes les 30 s."
+              ? "Score = CA cumulé de la saison, mis à jour chaque minute."
               : "Somme des scores de toutes les saisons."}{" "}
             [↑↓] choisir · [Entrée] voir son build · [Échap] retour
           </T>

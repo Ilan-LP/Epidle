@@ -36,6 +36,19 @@ describe("createApi", () => {
     expect(ids[0]).not.toBe(ids[1]);
   });
 
+  it("strips terminal escapes and bidi overrides from everything the server sends", async () => {
+    const evil = "\u001b]0;pwned\u0007\u001b[2JSalut\u202e";
+    const { fn } = fakeFetch(200, { pseudo: evil, nested: [{ name: evil }] });
+    expect(await createApi({ fetch: fn }).me()).toEqual({
+      pseudo: "]0;pwned[2JSalut",
+      nested: [{ name: "]0;pwned[2JSalut" }],
+    });
+    const { fn: failing } = fakeFetch(500, { error: "internal", message: evil });
+    await expect(createApi({ fetch: failing }).me()).rejects.toMatchObject({
+      message: "]0;pwned[2JSalut",
+    });
+  });
+
   it("turns error responses into ApiError with the server message", async () => {
     const { fn } = fakeFetch(410, { error: "login_expired", message: "La connexion a expiré." });
     const err = await createApi({ fetch: fn })

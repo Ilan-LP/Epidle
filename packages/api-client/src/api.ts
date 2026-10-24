@@ -1,4 +1,5 @@
 import type { GameState, HireKind, Modifier, Rates, SeasonWeeks, StageId } from "@epidle/core";
+import type { Award } from "./awards";
 
 // Thin client for the server API, shared by the web and terminal clients. Every response that
 // carries a game view (state, intent, and the 409/422 intent errors) is the new source of truth.
@@ -30,7 +31,8 @@ export type Scope = "season" | "alltime";
 export interface Leaderboard {
   scope: Scope;
   season: SeasonView;
-  entries: { rank: number; pseudo: string; score: number }[];
+  /** `title`: the player's best badge of any past season. */
+  entries: { rank: number; pseudo: string; score: number; title: Award | null }[];
   me: { rank: number; score: number } | null;
 }
 
@@ -43,6 +45,8 @@ export interface PlayerBuild {
   rooms: number;
   team: { kind: HireKind; level: number; count: number; training: number }[];
   stages: { id: StageId; instances: number; version: number; strictness: number }[];
+  /** Badges of past seasons, newest first. */
+  badges: Award[];
 }
 
 export interface FeedEvent {
@@ -97,6 +101,23 @@ export function newRequestId(): string {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+// C0/C1 control characters (ANSI escapes start with ESC) and bidi overrides: a server could use
+// them to rewrite the terminal or reorder text. The official server never sends any.
+// biome-ignore lint/suspicious/noControlCharactersInRegex: matching them is the point.
+const CONTROL = /[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/g;
+
+/** Copy of a JSON value with control characters removed from every string. */
+export function stripControl(value: unknown): unknown {
+  if (typeof value === "string") return value.replace(CONTROL, "");
+  if (Array.isArray(value)) return value.map(stripControl);
+  if (value && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value)) out[k] = stripControl(v);
+    return out;
+  }
+  return value;
+}
+
 export interface DeviceLogin {
   /** Opaque id of this login on the Epidle server, to poll with. */
   handle: string;
@@ -141,7 +162,7 @@ export function createApi({ baseUrl = "", token, fetch: doFetch = fetch }: ApiOp
       throw new ApiError(0, "network", "Serveur injoignable.", null);
     }
     if (res.status === 204) return undefined as T;
-    const data: unknown = await res.json().catch(() => null);
+    const data = stripControl(await res.json().catch(() => null));
     if (!res.ok) {
       const err = (data ?? {}) as { error?: string; message?: string };
       throw new ApiError(
@@ -164,7 +185,9 @@ export function createApi({ baseUrl = "", token, fetch: doFetch = fetch }: ApiOp
     feed: () => request<Feed>("GET", "/api/feed"),
     build: (pseudo: string) =>
       request<PlayerBuild>("GET", `/api/players/${encodeURIComponent(pseudo)}/build`),
-    logout: () => request<void>("POST", "/api/auth/logout"),
+    /** `everywhere`: ends every session of the player, on every device. */
+    logout: (everywhere = false) =>
+      request<void>("POST", `/api/auth/logout${everywhere ? "?all=1" : ""}`),
     /** Starts a device code login (CLI). */
     deviceStart: () => request<DeviceLogin>("POST", "/api/auth/device"),
     /** 410 once expired, 403 if the player refused. */

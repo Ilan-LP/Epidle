@@ -1,6 +1,7 @@
-import { BALANCE, HOUR } from "@epidle/core";
+import { BALANCE, DAY, HOUR } from "@epidle/core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { getSeason, runMaintenance } from "./seasons";
+import { openDb } from "./db";
+import { anchoredStart, currentSeason, getSeason, runMaintenance } from "./seasons";
 import { MS, T0, testApp } from "./test-utils";
 
 const SEASON_MS = BALANCE.seasonSeconds * MS;
@@ -61,5 +62,67 @@ describe("season rollover", () => {
     runMaintenance(t.db, t.clock.t);
     expect(t.db.prepare("SELECT count(*) AS n FROM sessions").get()).toEqual({ n: 0 });
     expect(t.db.prepare("SELECT count(*) AS n FROM intent_requests").get()).toEqual({ n: 0 });
+  });
+});
+
+describe("corrupted rows", () => {
+  it("only affect their own player, never the leaderboard or the rollover", async () => {
+    const alice = t.player("oid-a", "Alice");
+    const bob = t.player("oid-b", "Bobby");
+    await t.get(alice, "/api/state");
+    await t.get(bob, "/api/state");
+    t.db
+      .prepare("UPDATE games SET state = ? WHERE user_id = (SELECT id FROM users WHERE pseudo = ?)")
+      .run('{"time":', "Bobby");
+    t.clock.t += HOUR * MS;
+
+    expect((await t.get(alice, "/api/state")).statusCode).toBe(200);
+    expect((await t.get(alice, "/api/leaderboard")).statusCode).toBe(200);
+    expect((await t.get(alice, "/api/feed")).statusCode).toBe(200);
+    expect((await t.get(bob, "/api/state")).statusCode).toBe(500);
+    const bobId = (
+      t.db.prepare("SELECT id FROM users WHERE pseudo = 'Bobby'").get() as { id: number }
+    ).id;
+    expect(runMaintenance(t.db, t.clock.t)).toEqual([bobId]);
+
+    t.clock.t += SEASON_MS;
+    expect((await t.get(alice, "/api/state")).json().season.id).toBe(2);
+    // A new season is a new company: Bob plays again.
+    expect((await t.get(bob, "/api/state")).statusCode).toBe(200);
+  });
+
+  it("rejects a valid JSON that is not a state", async () => {
+    const alice = t.player("oid-a", "Alice");
+    await t.get(alice, "/api/state");
+    t.db.prepare("UPDATE games SET state = ?").run('{"money":1e12}');
+    t.clock.t += HOUR * MS;
+    expect((await t.get(alice, "/api/state")).statusCode).toBe(500);
+    expect((await t.get(t.player("oid-b", "Bobby"), "/api/leaderboard")).statusCode).toBe(200);
+  });
+});
+
+describe("season anchor", () => {
+  const anchor = Date.UTC(2026, 10, 2, 17); // Monday 2 Nov 2026, 18:00 Paris
+  const fresh = () => openDb(":memory:");
+
+  it("aligns the first season on the anchor instead of the first start", () => {
+    const db = fresh();
+    const now = anchor + 3 * DAY * MS + 1234;
+    expect(currentSeason(db, now, [], anchor).startsAt).toBe(anchor);
+    expect(anchoredStart(anchor, anchor + SEASON_MS + 1)).toBe(anchor + SEASON_MS);
+  });
+
+  it("before the anchor, runs a shorter first season that ends at it", () => {
+    const db = fresh();
+    const season = currentSeason(db, anchor - 2 * DAY * MS, [], anchor);
+    expect(season.endsAt).toBe(anchor);
+    expect(currentSeason(db, anchor + 1, [], anchor).startsAt).toBe(anchor);
+  });
+
+  it("stays aligned after a long downtime", () => {
+    const db = fresh();
+    currentSeason(db, anchor, [], anchor);
+    const later = anchor + 3 * SEASON_MS + 5 * HOUR * MS;
+    expect(currentSeason(db, later, [], anchor).startsAt).toBe(anchor + 3 * SEASON_MS);
   });
 });

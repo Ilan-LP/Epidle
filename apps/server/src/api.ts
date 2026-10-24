@@ -1,18 +1,17 @@
 import { BALANCE, computeRates, type GameState, INTENT_ERROR_MESSAGES } from "@epidle/core";
 import type { FastifyInstance } from "fastify";
 import { requirePlayer, requireUser } from "./auth";
+import { awardsOf, titlesOf } from "./awards";
 import type { Db } from "./db";
 import { sendError } from "./errors";
 import { weekFeed } from "./feed";
-import { loadGame, refreshScores, type Season, saveGame, stateBalance } from "./games";
+import { loadGame, type Season, saveGame, stateBalance } from "./games";
 import { applyIntent, INTENT_SCHEMA, type Intent } from "./intents";
 import type { Rotation } from "./modifiers";
+import { PSEUDO_PATTERN, pseudoRefusal, setPseudo } from "./pseudo";
 import { currentSeason } from "./seasons";
 
-export const PSEUDO_PATTERN = "^[A-Za-z0-9_-]{3,16}$";
 const LEADERBOARD_SIZE = 50;
-/** The leaderboard advances every company of the season, at most this often. */
-const SCORES_MAX_AGE_MS = 30_000;
 // Per player, on top of the global 300/min. The clients poll the state every 15 s and the
 // leaderboard and feed every 30 s: these leave room for several tabs, not for a scraper.
 const INTENT_RATE_LIMIT = { rateLimit: { max: 30, timeWindow: 10_000 } };
@@ -56,8 +55,17 @@ function leaderboard(db: Db, seasonId: number | null, userId: number) {
   const me = db.prepare(`${ranked} WHERE id = @user`).get({ season: seasonId, user: userId }) as
     | RankRow
     | undefined;
+  const titles = titlesOf(
+    db,
+    top.map((r) => r.id),
+  );
   return {
-    entries: top.map(({ rank, pseudo, score }) => ({ rank, pseudo, score })),
+    entries: top.map(({ id, rank, pseudo, score }) => ({
+      rank,
+      pseudo,
+      score,
+      title: titles.get(id) ?? null,
+    })),
     me: me ? { rank: me.rank, score: me.score } : null,
   };
 }
@@ -87,11 +95,16 @@ function buildView(state: GameState) {
   };
 }
 
-export function registerApi(app: FastifyInstance, db: Db, now: () => number, rotation: Rotation) {
-  const season = (t: number) => currentSeason(db, t, rotation);
-  const freshScores = (s: Season, t: number) => {
-    if (t - s.scoresRefreshedAt > SCORES_MAX_AGE_MS) refreshScores(db, s, t);
-  };
+export function registerApi(
+  app: FastifyInstance,
+  db: Db,
+  now: () => number,
+  rotation: Rotation,
+  seasonAnchor: number | null = null,
+) {
+  // Scores are advanced by the maintenance job (every minute) and by each player's own saves,
+  // never on a request: refreshing every company blocks the server for a while at scale.
+  const season = (t: number) => currentSeason(db, t, rotation, seasonAnchor);
 
   app.get("/api/me", { preHandler: requireUser }, async (request) => ({
     pseudo: request.user?.pseudo ?? null,
@@ -112,11 +125,11 @@ export function registerApi(app: FastifyInstance, db: Db, now: () => number, rot
     },
     async (request, reply) => {
       const { pseudo } = request.body;
-      const taken = db
-        .prepare("SELECT 1 FROM users WHERE pseudo = ? AND id != ?")
-        .get(pseudo, request.user?.id);
-      if (taken) return sendError(reply, 409, "pseudo_taken");
-      db.prepare("UPDATE users SET pseudo = ? WHERE id = ?").run(pseudo, request.user?.id);
+      const userId = request.user?.id as number;
+      const t = now();
+      const refusal = pseudoRefusal(db, userId, pseudo, t);
+      if (refusal) return sendError(reply, refusal === "pseudo_forbidden" ? 422 : 409, refusal);
+      setPseudo(db, userId, pseudo, t);
       return { pseudo };
     },
   );
@@ -191,7 +204,6 @@ export function registerApi(app: FastifyInstance, db: Db, now: () => number, rot
     async (request) => {
       const t = now();
       const s = season(t);
-      freshScores(s, t);
       const scope = request.query.scope ?? "season";
       return {
         scope,
@@ -204,7 +216,6 @@ export function registerApi(app: FastifyInstance, db: Db, now: () => number, rot
   app.get("/api/feed", { preHandler: requirePlayer, config: READ_RATE_LIMIT }, async () => {
     const t = now();
     const s = season(t);
-    freshScores(s, t);
     return { season: seasonView(s), ...weekFeed(db, s, t) };
   });
 
@@ -235,6 +246,7 @@ export function registerApi(app: FastifyInstance, db: Db, now: () => number, rot
         pseudo: row.pseudo,
         season: seasonView(s),
         ...buildView(loadGame(db, row.id, s, t)),
+        badges: awardsOf(db, row.id),
       };
     },
   );

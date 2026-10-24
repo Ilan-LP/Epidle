@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { testApp } from "./test-utils";
+import { buildApp } from "./app";
+import { openDb } from "./db";
+import { fakeProvider, testApp } from "./test-utils";
 
 let t: Awaited<ReturnType<typeof testApp>>;
 beforeEach(async () => {
@@ -49,7 +51,14 @@ describe("web login (authorization code + PKCE)", () => {
     expect(me.json()).toEqual({ pseudo: null });
     // Only the Microsoft object id is stored.
     expect(t.db.prepare("SELECT * FROM users").all()).toEqual([
-      { id: 1, ms_oid: "oid-alice", pseudo: null, created_at: t.clock.t },
+      {
+        id: 1,
+        ms_oid: "oid-alice",
+        pseudo: null,
+        created_at: t.clock.t,
+        pseudo_key: null,
+        pseudo_changed_at: null,
+      },
     ]);
   });
 
@@ -80,6 +89,25 @@ describe("web login (authorization code + PKCE)", () => {
       "login=error",
     );
     expect(t.db.prepare("SELECT count(*) AS n FROM sessions").get()).toEqual({ n: 0 });
+  });
+});
+
+describe("web login rate limit", () => {
+  it("lets a whole campus behind one IP log in, then sends the browser back to the login page", async () => {
+    // 300 web logins (login + callback) in the same minute from one IP all go through.
+    const codes = new Set<number>();
+    for (let i = 0; i < 300; i++) {
+      const { state, loginCookie } = await startWebLogin();
+      t.fake.codes.set(`code${i}`, `oid-${i}`);
+      codes.add((await callback(state, `code${i}`, loginCookie)).statusCode);
+    }
+    expect([...codes]).toEqual([302]);
+    expect(t.db.prepare("SELECT count(*) AS n FROM users").get()).toEqual({ n: 300 });
+    // Past 600 a minute on a route: a redirect to the login page with its error, not a JSON page.
+    for (let i = 300; i < 600; i++) await t.app.inject({ method: "GET", url: "/api/auth/login" });
+    const limited = await t.app.inject({ method: "GET", url: "/api/auth/login" });
+    expect(limited.statusCode).toBe(302);
+    expect(limited.headers.location).toBe("http://localhost:5173/?login=error");
   });
 });
 
@@ -124,7 +152,92 @@ describe("CLI login (device code)", () => {
   });
 });
 
+describe("Microsoft unreachable", () => {
+  const down = async () => {
+    throw new TypeError("fetch failed");
+  };
+
+  it("answers 503 to the CLI and keeps the login pending", async () => {
+    const start = t.fake.provider.startDeviceCode;
+    t.fake.provider.startDeviceCode = down;
+    const failed = await t.app.inject({ method: "POST", url: "/api/auth/device" });
+    expect(failed.statusCode).toBe(503);
+    expect(failed.json().error).toBe("auth_unavailable");
+    t.fake.provider.startDeviceCode = start;
+
+    const { handle, userCode } = (
+      await t.app.inject({ method: "POST", url: "/api/auth/device" })
+    ).json();
+    const poll = t.fake.provider.pollDeviceCode;
+    t.fake.provider.pollDeviceCode = down;
+    const poll503 = await t.app.inject({
+      method: "POST",
+      url: "/api/auth/device/token",
+      payload: { handle },
+    });
+    expect(poll503.statusCode).toBe(503);
+    t.fake.provider.pollDeviceCode = poll;
+    t.fake.approve(userCode, "oid-alice");
+    const ok = await t.app.inject({
+      method: "POST",
+      url: "/api/auth/device/token",
+      payload: { handle },
+    });
+    expect(ok.json().status).toBe("ok");
+  });
+
+  it("sends the browser back to the login page", async () => {
+    const { state, loginCookie } = await startWebLogin();
+    t.fake.provider.redeemCode = down;
+    const res = await callback(state, "any", loginCookie);
+    expect(res.statusCode).toBe(302);
+    expect(res.headers.location).toBe("http://localhost:5173/?login=error");
+  });
+});
+
 describe("sessions", () => {
+  it("logout everywhere ends every session of the player, only theirs", async () => {
+    const laptop = await t.login("oid-a", "Alice");
+    const cli = await t.login("oid-a");
+    const bob = await t.login("oid-b", "Bobby");
+    const res = await t.app.inject({
+      method: "POST",
+      url: "/api/auth/logout?all=1",
+      headers: t.auth(laptop),
+    });
+    expect(res.statusCode).toBe(204);
+    expect((await t.get(laptop, "/api/me")).statusCode).toBe(401);
+    expect((await t.get(cli, "/api/me")).statusCode).toBe(401);
+    expect((await t.get(bob, "/api/me")).statusCode).toBe(200);
+  });
+
+  it("uses a __Host- cookie on https", async () => {
+    const fake = fakeProvider();
+    const app = await buildApp({
+      db: openDb(":memory:"),
+      provider: fake.provider,
+      publicUrl: "https://epidle.example.org",
+    });
+    const start = await app.inject({ method: "GET", url: "/api/auth/login" });
+    const state = new URL(start.headers.location as string).searchParams.get("state") as string;
+    fake.codes.set("good", "oid-a");
+    const res = await app.inject({
+      method: "GET",
+      url: `/api/auth/callback?state=${state}&code=good`,
+      cookies: { epidle_login: start.cookies.find((c) => c.name === "epidle_login")?.value ?? "" },
+    });
+    const cookie = res.cookies.find((c) => c.name === "__Host-epidle_session");
+    expect(cookie).toMatchObject({ secure: true, httpOnly: true, path: "/" });
+    expect(cookie).not.toHaveProperty("domain");
+    const me = await app.inject({
+      method: "GET",
+      url: "/api/me",
+      cookies: { "__Host-epidle_session": cookie?.value ?? "" },
+    });
+    expect(me.statusCode).toBe(200);
+    await app.close();
+  });
+
   it("logout revokes the token", async () => {
     const token = await t.login("oid-1");
     expect((await t.get(token, "/api/me")).statusCode).toBe(200);
