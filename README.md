@@ -77,17 +77,19 @@ All routes are under `/api`, JSON in and out, errors are `{ error, message }` wi
 |---|---|---|
 | `GET /auth/login`, `GET /auth/callback` | none | Web login, authorization code + PKCE |
 | `POST /auth/device`, `POST /auth/device/token` | none | CLI login, device code; poll `token` with the returned `handle` until `status: "ok"` |
-| `POST /auth/logout` | session | Revokes the session |
-| `GET /me`, `PUT /me/pseudo` | session | Pseudo, 3-16 chars `[A-Za-z0-9_-]`, unique ignoring case, required to play |
+| `POST /auth/logout[?all=1]` | session | Revokes the session, or every session of the player with `all=1` |
+| `GET /me`, `PUT /me/pseudo` | session | Pseudo, 3-16 chars `[A-Za-z0-9_-]`, required to play. Unique ignoring case, `_`, `-` and lookalikes (0/o, 1/i/l); 422 `pseudo_forbidden` (blocklist), 409 `pseudo_cooldown` (24 h between renames) or `pseudo_taken` (also a pseudo given up less than 14 days ago) |
 | `GET /state` | player | Company caught up to server time, season with its weekly modifiers, rates |
 | `POST /intent` | player | `{ type, requestId, ... }`: `hire`, `train`, `buyRoom`, `buyMouli`, `upgradeMouli`, `setStrictness`. `count` (1-100) on repeatable ones. 422 when the game refuses, 409 on a reused `requestId` |
-| `GET /leaderboard?scope=season\|alltime` | player | Top 50 and my rank |
-| `GET /players/:pseudo/build` | player | Public build: team by kind and level, rooms, mouli stages and strictness. No money |
+| `GET /leaderboard?scope=season\|alltime` | player | Top 50 with each player's title (best badge of a past season) and my rank |
+| `GET /players/:pseudo/build` | player | Public build: team by kind and level, rooms, mouli stages and strictness, badges. No money |
 | `GET /feed` | player | This week: its modifier, events (tiers from PME, first dev from Lead, new leader, top 10 entries), top 5 climbers, players who joined |
 
-Seasons roll over on the first request after the end and in a job that runs every minute.
+Seasons roll over on the first request after the end and in a job that runs every minute; the same job refreshes leaderboard scores. At the close, the top 10, players at the last tier and players with a Légende dev get a badge.
 
-Rate limits, per player when logged in, per IP otherwise: 300 requests/min overall, 30 intents per 10 s, 60/min on `/state` and builds, 30/min on the leaderboard and the feed, 120 auth requests/min per IP. A banned account gets 403 `banned` at login.
+Writes (POST, PUT) with an `Origin` other than `PUBLIC_URL` are refused with 403 `forbidden_origin`.
+
+Rate limits, per player when logged in, per IP otherwise: 300 requests/min overall, 30 intents per 10 s, 60/min on `/state` and builds, 30/min on the leaderboard and the feed. Per IP: 600/min on the web login and callback (a 429 there redirects to `/?login=error`), 120/min device code starts, 600/min device code polls and 30/min per login. A banned account gets 403 `banned` at login.
 
 ### Weekly modifiers
 
