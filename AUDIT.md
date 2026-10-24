@@ -18,6 +18,40 @@ What needs work before launch is operational robustness rather than security: on
 | Medium | 8 |
 | Low | 17 |
 
+## Fix status (2026-10-24)
+
+Approved: everything except M5 and M6, which stay as they are by decision. One concern per commit, details and reasons in DECISIONS.md ("Audit fixes").
+
+| Finding | Status | Commit | Regression test |
+|---|---|---|---|
+| M1 corrupted row takes the game down | fixed | `37fcf91` | `seasons.test.ts` "corrupted rows", `state.test.ts` |
+| M2 score refresh on the request path | fixed (refresh from the 60 s job only) | `2892ef8`, `8c0bec3` | `api.test.ts` "never advances every company on a request" |
+| M3 login limits for a campus NAT | fixed | `743e6a9` | `auth.test.ts` "web login rate limit" |
+| M4 pseudo rules | fixed | `354ad35` | `pseudo.test.ts` |
+| M5 guest accounts | not fixed, by decision | | |
+| M6 local play without Entra | not fixed, by decision | | |
+| M7 production config | fixed | `57ad642` | `config.test.ts` |
+| M8 badges and titles | done, minimal | `df5bc81` | `awards.test.ts` (server and api-client) |
+| L1 PORT / BACKUP_KEEP | fixed | `57ad642` | `config.test.ts` |
+| L2 .env.example | fixed | `e75736a`, `82934f5` | |
+| L3 CSP, HSTS | fixed | `eefea18` | checked in Chromium under the CSP, no violation |
+| L4 Microsoft unreachable | fixed | `9318e97` | `auth.test.ts` "Microsoft unreachable" |
+| L5 poll limit by handle | fixed | `92fb796` | `anti-cheat.test.ts` "limits device code polling per IP too" |
+| L6 device code phishing | warning added | `f95e30d` | none (Ink login screen needs a TTY to render its async states) |
+| L7 logout everywhere, `__Host-` | fixed | `b31a837` | `auth.test.ts` "sessions" |
+| L8 cross-site logout | fixed (Origin check on every write) | `f8639c5` | `anti-cheat.test.ts` "cross-site requests" |
+| L9 forged X-Forwarded-For | fixed | `c46f8a3` | `app.test.ts` "behind the reverse proxy" |
+| L10 OAuth code in logs | fixed | `481a003` | `app.test.ts` "request logs", checked on the live server |
+| L11 malformed build link | fixed | `90e5aa3` | `router.test.ts` |
+| L12 file permissions | fixed | `a6f8ca7` | `backup.test.ts` |
+| L13 season anchor | added (`SEASON_START`) | `82934f5` | `seasons.test.ts` "season anchor" |
+| L14 control characters | fixed | `418323e` | `api.test.ts` (api-client) |
+| L15 CLI default server | fixed | `f3f82fd` | checked: `--publish` without an https URL fails |
+| L16 pins, CI token | fixed | `4773208` | |
+| L17 log rotation, web health check | fixed | `dc0d943` | `docker compose config`; images still not run here (no daemon) |
+
+After the fixes: lint and typecheck pass, 39 test files / 265 tests pass, server, web and CLI build, a database written by the audited version migrates to version 4 with its players intact.
+
 ## Checks run
 
 | Check | Result |
