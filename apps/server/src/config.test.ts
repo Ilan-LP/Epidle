@@ -20,6 +20,12 @@ describe("loadConfig", () => {
     });
   });
 
+  it("reads the season anchor with its offset", () => {
+    expect(load({ SEASON_START: "2026-11-02T18:00:00+01:00" }).seasonAnchor).toBe(
+      Date.UTC(2026, 10, 2, 17),
+    );
+  });
+
   it("normalizes PUBLIC_URL to an origin", () => {
     expect(load({ PUBLIC_URL: "https://epidle.example.org/" }).publicUrl).toBe(
       "https://epidle.example.org",
@@ -40,6 +46,8 @@ describe("loadConfig", () => {
       { BACKUP_KEEP: "0" },
       { BACKUP_INTERVAL_HOURS: "Infinity" },
       { TRUST_PROXY: "true" },
+      { SEASON_START: "2026-11-02T18:00:00" },
+      { SEASON_START: "lundi" },
       { ENTRA_TENANT_ID: "common", ENTRA_CLIENT_ID: ENTRA.ENTRA_CLIENT_ID },
     ]) {
       expect(() => load(env), JSON.stringify(env)).toThrow();

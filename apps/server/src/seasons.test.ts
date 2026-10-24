@@ -1,6 +1,7 @@
-import { BALANCE, HOUR } from "@epidle/core";
+import { BALANCE, DAY, HOUR } from "@epidle/core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { getSeason, runMaintenance } from "./seasons";
+import { openDb } from "./db";
+import { anchoredStart, currentSeason, getSeason, runMaintenance } from "./seasons";
 import { MS, T0, testApp } from "./test-utils";
 
 const SEASON_MS = BALANCE.seasonSeconds * MS;
@@ -97,5 +98,31 @@ describe("corrupted rows", () => {
     t.clock.t += HOUR * MS;
     expect((await t.get(alice, "/api/state")).statusCode).toBe(500);
     expect((await t.get(t.player("oid-b", "Bobby"), "/api/leaderboard")).statusCode).toBe(200);
+  });
+});
+
+describe("season anchor", () => {
+  const anchor = Date.UTC(2026, 10, 2, 17); // Monday 2 Nov 2026, 18:00 Paris
+  const fresh = () => openDb(":memory:");
+
+  it("aligns the first season on the anchor instead of the first start", () => {
+    const db = fresh();
+    const now = anchor + 3 * DAY * MS + 1234;
+    expect(currentSeason(db, now, [], anchor).startsAt).toBe(anchor);
+    expect(anchoredStart(anchor, anchor + SEASON_MS + 1)).toBe(anchor + SEASON_MS);
+  });
+
+  it("before the anchor, runs a shorter first season that ends at it", () => {
+    const db = fresh();
+    const season = currentSeason(db, anchor - 2 * DAY * MS, [], anchor);
+    expect(season.endsAt).toBe(anchor);
+    expect(currentSeason(db, anchor + 1, [], anchor).startsAt).toBe(anchor);
+  });
+
+  it("stays aligned after a long downtime", () => {
+    const db = fresh();
+    currentSeason(db, anchor, [], anchor);
+    const later = anchor + 3 * SEASON_MS + 5 * HOUR * MS;
+    expect(currentSeason(db, later, [], anchor).startsAt).toBe(anchor + 3 * SEASON_MS);
   });
 });

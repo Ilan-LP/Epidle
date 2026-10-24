@@ -67,6 +67,8 @@ export type AppOptions = {
   now?: () => number;
   /** Weekly modifiers, from the config file. None by default. */
   rotation?: Rotation;
+  /** Season boundaries are this time (ms) plus whole seasons. Null: from the first start. */
+  seasonAnchor?: number | null;
   /** Runs the season rollover / cleanup job at this interval. Off when unset (tests). */
   maintenanceIntervalMs?: number;
   /** Periodic database backups. Off when unset (tests). */
@@ -132,7 +134,8 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
     return { status: "ok", db: "ok" };
   });
 
-  registerApi(app, db, now, rotation);
+  const anchor = opts.seasonAnchor ?? null;
+  registerApi(app, db, now, rotation, anchor);
 
   // Responses the official clients never cause. Logged for review, never blocked here.
   app.addHook("onResponse", async (request, reply) => {
@@ -177,7 +180,7 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
     every(
       opts.maintenanceIntervalMs,
       () => {
-        const corrupted = runMaintenance(db, now(), rotation);
+        const corrupted = runMaintenance(db, now(), rotation, anchor);
         if (corrupted.length)
           app.log.error({ userIds: corrupted }, "corrupted game states skipped");
       },

@@ -85,10 +85,16 @@ function buildView(state: GameState) {
   };
 }
 
-export function registerApi(app: FastifyInstance, db: Db, now: () => number, rotation: Rotation) {
+export function registerApi(
+  app: FastifyInstance,
+  db: Db,
+  now: () => number,
+  rotation: Rotation,
+  seasonAnchor: number | null = null,
+) {
   // Scores are advanced by the maintenance job (every minute) and by each player's own saves,
   // never on a request: refreshing every company blocks the server for a while at scale.
-  const season = (t: number) => currentSeason(db, t, rotation);
+  const season = (t: number) => currentSeason(db, t, rotation, seasonAnchor);
 
   app.get("/api/me", { preHandler: requireUser }, async (request) => ({
     pseudo: request.user?.pseudo ?? null,

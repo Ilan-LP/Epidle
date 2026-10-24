@@ -46,6 +46,7 @@ pnpm admin help                      # admin commands, see the runbook
 | `ENTRA_CLIENT_ID` | server | none, application (client) id of the Epidle app registration |
 | `ENTRA_CLIENT_SECRET` | server | none, only if the redirect URI is registered on the "Web" platform |
 | `TRUST_PROXY` | server | unset, `1` behind a reverse proxy so rate limits see real IPs |
+| `SEASON_START` | server | unset: the first season starts at the first server start. An ISO date with offset (`2026-11-02T18:00:00+01:00`): seasons start at this date plus whole seasons; before it, a shorter first season ends at it |
 | `MODIFIERS_PATH` | server | `apps/server/modifiers.json`, the weekly modifiers |
 | `BACKUP_DIR` | server | `backups/` next to the database. Empty string: no automatic backups |
 | `BACKUP_INTERVAL_HOURS` | server | `6`, plus one backup at every start |

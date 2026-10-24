@@ -29,6 +29,7 @@ export interface AdminContext {
   db: Db;
   now: number;
   rotation: Rotation;
+  seasonAnchor?: number | null;
   backup: { dir: string; keep: number } | null;
   out: (line: string) => void;
 }
@@ -110,7 +111,7 @@ export async function runAdmin(argv: string[], ctx: AdminContext): Promise<numbe
 
   switch (values.help ? "help" : command) {
     case "players": {
-      const season = currentSeason(db, now, ctx.rotation);
+      const season = currentSeason(db, now, ctx.rotation, ctx.seasonAnchor);
       const rows = db
         .prepare(
           `SELECT u.id, u.pseudo, round(coalesce(g.score, 0)) AS score,
@@ -212,7 +213,7 @@ export async function runAdmin(argv: string[], ctx: AdminContext): Promise<numbe
       return 0;
     }
     case "weeks": {
-      const season = currentSeason(db, now, ctx.rotation);
+      const season = currentSeason(db, now, ctx.rotation, ctx.seasonAnchor);
       const weekMs = BALANCE.weekSeconds * 1000;
       const show = (id: number, weeks: typeof season.weeks, startsAt: number) =>
         weeks.forEach((m, w) => {

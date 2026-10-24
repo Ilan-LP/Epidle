@@ -23,6 +23,8 @@ export interface ServerConfig {
   trustProxy: boolean;
   /** JSON file with the weekly modifiers. */
   modifiersPath: string;
+  /** SEASON_START in ms: seasons start at this date plus whole seasons. Null: at the first start. */
+  seasonAnchor: number | null;
   /** Null when BACKUP_DIR is set to an empty string. */
   backup: { dir: string; intervalMs: number; keep: number } | null;
 }
@@ -54,6 +56,18 @@ function integer(
     throw new Error(`${name} must be an integer between ${min} and ${max}, got ${raw}`);
   }
   return value;
+}
+
+/** An ISO date with an explicit offset: "18:00" alone would depend on the server's time zone. */
+function seasonStart(raw: string | undefined): number | null {
+  if (!raw) return null;
+  const t = Date.parse(raw);
+  if (!/(Z|[+-]\d\d:\d\d)$/.test(raw) || !Number.isFinite(t)) {
+    throw new Error(
+      `SEASON_START must be an ISO date with an offset, like 2026-11-02T18:00:00+01:00, got ${raw}`,
+    );
+  }
+  return t;
 }
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
@@ -100,6 +114,7 @@ export function loadConfig(env: NodeJS.ProcessEnv, defaults: ConfigDefaults): Se
     entra,
     trustProxy: trustProxy === "1",
     modifiersPath: env.MODIFIERS_PATH || defaults.modifiersPath,
+    seasonAnchor: seasonStart(env.SEASON_START),
     backup: backupDir
       ? {
           dir: backupDir,
