@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { Db } from "./db";
-import { AuthError, type Identity, type IdentityProvider } from "./entra";
+import type { Identity, IdentityProvider } from "./entra";
 import { sendError } from "./errors";
 
 export interface AuthUser {
@@ -174,17 +174,24 @@ export function registerAuth(app: FastifyInstance, { db, provider, publicUrl, no
         setSessionCookie(reply, createSession(db, upsertUser(db, identity, now()), now()));
         return reply.redirect(`${publicUrl}/`);
       } catch (e) {
-        if (!(e instanceof AuthError)) throw e;
-        request.log.warn({ err: e.message }, "web login failed");
+        // A refused token (AuthError) or Microsoft unreachable: back to the login page either way.
+        request.log.warn({ err: (e as Error).message }, "web login failed");
         return fail();
       }
     },
   );
 
   // CLI: device code flow, proxied so the CLI only knows an opaque handle.
-  app.post("/api/auth/device", { config: AUTH_RATE_LIMIT }, async (_request, reply) => {
+  app.post("/api/auth/device", { config: AUTH_RATE_LIMIT }, async (request, reply) => {
     if (!provider) return sendError(reply, 503, "auth_unavailable");
-    const start = await provider.startDeviceCode();
+    let start: Awaited<ReturnType<IdentityProvider["startDeviceCode"]>>;
+    try {
+      start = await provider.startDeviceCode();
+    } catch (e) {
+      // Microsoft unreachable or refusing: a clear "try later", not a 500.
+      request.log.warn({ err: (e as Error).message }, "device code start failed");
+      return sendError(reply, 503, "auth_unavailable");
+    }
     const handle = randomToken();
     db.prepare(
       "INSERT INTO auth_requests (id, kind, data, expires_at) VALUES (?, 'device', ?, ?)",
@@ -234,7 +241,19 @@ export function registerAuth(app: FastifyInstance, { db, provider, publicUrl, no
       if (now() - data.lastPollAt < data.interval * 1000) {
         return { status: "pending", interval: data.interval };
       }
-      const result = await provider.pollDeviceCode(data.deviceCode);
+      let result: Awaited<ReturnType<IdentityProvider["pollDeviceCode"]>>;
+      try {
+        result = await provider.pollDeviceCode(data.deviceCode);
+      } catch (e) {
+        // The login stays pending: the CLI retries on 503, at most once per interval.
+        request.log.warn({ err: (e as Error).message }, "device code poll failed");
+        data.lastPollAt = now();
+        db.prepare("UPDATE auth_requests SET data = ? WHERE id = ?").run(
+          JSON.stringify(data),
+          handle,
+        );
+        return sendError(reply, 503, "auth_unavailable");
+      }
       if (result.status === "pending" || result.status === "slow_down") {
         if (result.status === "slow_down") data.interval += 5;
         data.lastPollAt = now();

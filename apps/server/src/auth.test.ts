@@ -150,6 +150,49 @@ describe("CLI login (device code)", () => {
   });
 });
 
+describe("Microsoft unreachable", () => {
+  const down = async () => {
+    throw new TypeError("fetch failed");
+  };
+
+  it("answers 503 to the CLI and keeps the login pending", async () => {
+    const start = t.fake.provider.startDeviceCode;
+    t.fake.provider.startDeviceCode = down;
+    const failed = await t.app.inject({ method: "POST", url: "/api/auth/device" });
+    expect(failed.statusCode).toBe(503);
+    expect(failed.json().error).toBe("auth_unavailable");
+    t.fake.provider.startDeviceCode = start;
+
+    const { handle, userCode } = (
+      await t.app.inject({ method: "POST", url: "/api/auth/device" })
+    ).json();
+    const poll = t.fake.provider.pollDeviceCode;
+    t.fake.provider.pollDeviceCode = down;
+    const poll503 = await t.app.inject({
+      method: "POST",
+      url: "/api/auth/device/token",
+      payload: { handle },
+    });
+    expect(poll503.statusCode).toBe(503);
+    t.fake.provider.pollDeviceCode = poll;
+    t.fake.approve(userCode, "oid-alice");
+    const ok = await t.app.inject({
+      method: "POST",
+      url: "/api/auth/device/token",
+      payload: { handle },
+    });
+    expect(ok.json().status).toBe("ok");
+  });
+
+  it("sends the browser back to the login page", async () => {
+    const { state, loginCookie } = await startWebLogin();
+    t.fake.provider.redeemCode = down;
+    const res = await callback(state, "any", loginCookie);
+    expect(res.statusCode).toBe(302);
+    expect(res.headers.location).toBe("http://localhost:5173/?login=error");
+  });
+});
+
 describe("sessions", () => {
   it("logout revokes the token", async () => {
     const token = await t.login("oid-1");
