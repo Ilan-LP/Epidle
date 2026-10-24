@@ -97,6 +97,23 @@ export function newRequestId(): string {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+// C0/C1 control characters (ANSI escapes start with ESC) and bidi overrides: a server could use
+// them to rewrite the terminal or reorder text. The official server never sends any.
+// biome-ignore lint/suspicious/noControlCharactersInRegex: matching them is the point.
+const CONTROL = /[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/g;
+
+/** Copy of a JSON value with control characters removed from every string. */
+export function stripControl(value: unknown): unknown {
+  if (typeof value === "string") return value.replace(CONTROL, "");
+  if (Array.isArray(value)) return value.map(stripControl);
+  if (value && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value)) out[k] = stripControl(v);
+    return out;
+  }
+  return value;
+}
+
 export interface DeviceLogin {
   /** Opaque id of this login on the Epidle server, to poll with. */
   handle: string;
@@ -141,7 +158,7 @@ export function createApi({ baseUrl = "", token, fetch: doFetch = fetch }: ApiOp
       throw new ApiError(0, "network", "Serveur injoignable.", null);
     }
     if (res.status === 204) return undefined as T;
-    const data: unknown = await res.json().catch(() => null);
+    const data = stripControl(await res.json().catch(() => null));
     if (!res.ok) {
       const err = (data ?? {}) as { error?: string; message?: string };
       throw new ApiError(
