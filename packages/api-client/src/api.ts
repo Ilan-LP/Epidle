@@ -164,7 +164,9 @@ export function createApi({ baseUrl = "", token, fetch: doFetch = fetch }: ApiOp
     feed: () => request<Feed>("GET", "/api/feed"),
     build: (pseudo: string) =>
       request<PlayerBuild>("GET", `/api/players/${encodeURIComponent(pseudo)}/build`),
-    logout: () => request<void>("POST", "/api/auth/logout"),
+    /** `everywhere`: ends every session of the player, on every device. */
+    logout: (everywhere = false) =>
+      request<void>("POST", `/api/auth/logout${everywhere ? "?all=1" : ""}`),
     /** Starts a device code login (CLI). */
     deviceStart: () => request<DeviceLogin>("POST", "/api/auth/device"),
     /** 410 once expired, 403 if the player refused. */

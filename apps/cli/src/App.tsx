@@ -49,11 +49,14 @@ export function App() {
     check();
   }, [check]);
 
-  const logout = useCallback(async () => {
-    await api.logout().catch(() => undefined);
-    store.setToken(null);
-    setAuth({ status: "anon" });
-  }, [api, store]);
+  const logout = useCallback(
+    async (everywhere = false) => {
+      await api.logout(everywhere).catch(() => undefined);
+      store.setToken(null);
+      setAuth({ status: "anon" });
+    },
+    [api, store],
+  );
 
   const offline = auth.status === "offline" || auth.status === "loading";
   useKeys({ r: check, q: exit }, offline);

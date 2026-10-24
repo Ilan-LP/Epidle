@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { testApp } from "./test-utils";
+import { buildApp } from "./app";
+import { openDb } from "./db";
+import { fakeProvider, testApp } from "./test-utils";
 
 let t: Awaited<ReturnType<typeof testApp>>;
 beforeEach(async () => {
@@ -194,6 +196,48 @@ describe("Microsoft unreachable", () => {
 });
 
 describe("sessions", () => {
+  it("logout everywhere ends every session of the player, only theirs", async () => {
+    const laptop = await t.login("oid-a", "Alice");
+    const cli = await t.login("oid-a");
+    const bob = await t.login("oid-b", "Bobby");
+    const res = await t.app.inject({
+      method: "POST",
+      url: "/api/auth/logout?all=1",
+      headers: t.auth(laptop),
+    });
+    expect(res.statusCode).toBe(204);
+    expect((await t.get(laptop, "/api/me")).statusCode).toBe(401);
+    expect((await t.get(cli, "/api/me")).statusCode).toBe(401);
+    expect((await t.get(bob, "/api/me")).statusCode).toBe(200);
+  });
+
+  it("uses a __Host- cookie on https", async () => {
+    const fake = fakeProvider();
+    const app = await buildApp({
+      db: openDb(":memory:"),
+      provider: fake.provider,
+      publicUrl: "https://epidle.example.org",
+    });
+    const start = await app.inject({ method: "GET", url: "/api/auth/login" });
+    const state = new URL(start.headers.location as string).searchParams.get("state") as string;
+    fake.codes.set("good", "oid-a");
+    const res = await app.inject({
+      method: "GET",
+      url: `/api/auth/callback?state=${state}&code=good`,
+      cookies: { epidle_login: start.cookies.find((c) => c.name === "epidle_login")?.value ?? "" },
+    });
+    const cookie = res.cookies.find((c) => c.name === "__Host-epidle_session");
+    expect(cookie).toMatchObject({ secure: true, httpOnly: true, path: "/" });
+    expect(cookie).not.toHaveProperty("domain");
+    const me = await app.inject({
+      method: "GET",
+      url: "/api/me",
+      cookies: { "__Host-epidle_session": cookie?.value ?? "" },
+    });
+    expect(me.statusCode).toBe(200);
+    await app.close();
+  });
+
   it("logout revokes the token", async () => {
     const token = await t.login("oid-1");
     expect((await t.get(token, "/api/me")).statusCode).toBe(200);

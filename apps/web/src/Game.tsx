@@ -33,7 +33,7 @@ interface Props {
   setLang: (id: LanguageId) => void;
   onAuthLost: () => void;
   onPseudo: (pseudo: string) => void;
-  onLogout: () => void;
+  onLogout: (everywhere?: boolean) => void;
 }
 
 export function Game({ pseudo, lang, setLang, onAuthLost, onPseudo, onLogout }: Props) {

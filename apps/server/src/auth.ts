@@ -16,7 +16,9 @@ declare module "fastify" {
   }
 }
 
-export const SESSION_COOKIE = "epidle_session";
+/** On https, "__Host-": the browser refuses it from a subdomain or without Secure. */
+export const sessionCookie = (secure: boolean) =>
+  secure ? "__Host-epidle_session" : "epidle_session";
 /** Binds a web login to the browser that started it (login CSRF). */
 const LOGIN_COOKIE = "epidle_login";
 const SESSION_MS = 30 * 24 * 3600 * 1000;
@@ -81,10 +83,10 @@ export function upsertUser(db: Db, identity: Identity, now: number): number {
 export const isBanned = (db: Db, identity: Identity): boolean =>
   !!db.prepare("SELECT 1 FROM bans WHERE ms_oid = ?").get(identity.oid);
 
-function sessionToken(request: FastifyRequest): string | null {
+function sessionToken(request: FastifyRequest, cookieName: string): string | null {
   const header = request.headers.authorization;
   if (header?.startsWith("Bearer ")) return header.slice(7).trim() || null;
-  return request.cookies[SESSION_COOKIE] ?? null;
+  return request.cookies[cookieName] ?? null;
 }
 
 /** Removes the pending request and returns its data, or null if missing or expired. */
@@ -105,6 +107,7 @@ export interface AuthOptions {
 
 export function registerAuth(app: FastifyInstance, { db, provider, publicUrl, now }: AuthOptions) {
   const secure = publicUrl.startsWith("https://");
+  const SESSION_COOKIE = sessionCookie(secure);
   const redirectUri = `${publicUrl}/api/auth/callback`;
 
   // CSRF, on top of SameSite=Lax and JSON bodies: a browser always sends Origin on a cross-site
@@ -118,7 +121,7 @@ export function registerAuth(app: FastifyInstance, { db, provider, publicUrl, no
 
   app.decorateRequest("user", null);
   app.addHook("onRequest", async (request) => {
-    const token = sessionToken(request);
+    const token = sessionToken(request, SESSION_COOKIE);
     request.user = token ? findSessionUser(db, token, now()) : null;
   });
 
@@ -298,12 +301,29 @@ export function registerAuth(app: FastifyInstance, { db, provider, publicUrl, no
     },
   );
 
-  app.post("/api/auth/logout", async (request, reply) => {
-    const token = sessionToken(request);
-    if (token) db.prepare("DELETE FROM sessions WHERE token_hash = ?").run(hashToken(token));
-    reply.clearCookie(SESSION_COOKIE, { path: "/" });
-    return reply.code(204).send();
-  });
+  // ?all=1 ends every session of the player: a lost laptop with the CLI logged in, a shared PC.
+  app.post<{ Querystring: { all?: "1" } }>(
+    "/api/auth/logout",
+    {
+      schema: {
+        querystring: {
+          type: "object",
+          additionalProperties: false,
+          properties: { all: { type: "string", enum: ["1"] } },
+        },
+      },
+    },
+    async (request, reply) => {
+      const token = sessionToken(request, SESSION_COOKIE);
+      if (token && request.query.all === "1" && request.user) {
+        db.prepare("DELETE FROM sessions WHERE user_id = ?").run(request.user.id);
+      } else if (token) {
+        db.prepare("DELETE FROM sessions WHERE token_hash = ?").run(hashToken(token));
+      }
+      reply.clearCookie(SESSION_COOKIE, { path: "/", secure });
+      return reply.code(204).send();
+    },
+  );
 }
 
 export async function requireUser(request: FastifyRequest, reply: FastifyReply) {

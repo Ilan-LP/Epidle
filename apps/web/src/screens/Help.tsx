@@ -19,7 +19,13 @@ const SHORTCUTS: [string, string][] = [
   ["Esc", "retour"],
 ];
 
-export function Help({ pseudo, onLogout }: { pseudo: string; onLogout: () => void }) {
+export function Help({
+  pseudo,
+  onLogout,
+}: {
+  pseudo: string;
+  onLogout: (everywhere?: boolean) => void;
+}) {
   useShortcuts({ escape: () => navigate({ name: "dashboard" }) });
   return (
     <div className="grid">
@@ -62,7 +68,8 @@ export function Help({ pseudo, onLogout }: { pseudo: string; onLogout: () => voi
           <a className="btn" href={href({ name: "pseudo" })}>
             Changer de pseudo
           </a>{" "}
-          <Btn onClick={onLogout}>Se déconnecter</Btn>
+          <Btn onClick={() => onLogout()}>Se déconnecter</Btn>{" "}
+          <Btn onClick={() => onLogout(true)}>Se déconnecter partout</Btn>
         </p>
         <p className="dim small">
           Seul ton identifiant Microsoft (anonyme) et ton pseudo sont stockés. Le langage choisi ne
