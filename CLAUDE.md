@@ -29,3 +29,9 @@ It is a fun side project: keep it simple and shippable.
 - Small commits. After each task, explain in plain language what you changed and why. Append non-obvious choices to DECISIONS.md.
 - Never add a dependency without a one-line justification.
 - Ask me before changing anything marked "decided" above.
+
+## Client versions and analytics
+- Every API call carries `X-Epidle-Client: cli|web/<package.json version>` (set in `createApi`). The server refuses older than `MIN_CLI_VERSION` / `MIN_WEB_VERSION` with 426 `client_outdated` and a French message (`npx epidle@latest` for the CLI, reload for the web). No header = CLI 0.1.0, accepted by default: never break it without raising the minimum on purpose.
+- Bump `apps/cli/package.json` on every CLI publish. When a server change breaks old clients, raise `DEFAULT_MIN_VERSIONS` in `apps/server/src/client-version.ts` in the same commit.
+- Analytics live in our own database only (`apps/server/src/analytics.ts`): first/last seen, active days (Europe/Paris), tier milestones per season. No IP, no user agent, cascades on player removal. `pnpm admin analytics` prints counts only, never a pseudo or an id.
+- Migrations are append only, idempotent (`IF NOT EXISTS`, `INSERT OR IGNORE`) and never drop or rewrite data. A step can be `{ sql, data }` when a backfill needs code.

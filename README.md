@@ -51,6 +51,8 @@ pnpm admin help                      # admin commands, see the runbook
 | `BACKUP_DIR` | server | `backups/` next to the database. Empty string: no automatic backups |
 | `BACKUP_INTERVAL_HOURS` | server | `6`, plus one backup at every start |
 | `BACKUP_KEEP` | server | `28` (7 days at the default interval), older backups are deleted |
+| `MIN_CLI_VERSION` | server | `0.1.0`, oldest terminal client accepted (`x.y.z`). Raise it to force `npx epidle@latest` |
+| `MIN_WEB_VERSION` | server | `0.0.0`, oldest web client accepted: a tab opened before a deploy is asked to reload |
 | `EPIDLE_SERVER_URL` | cli | `http://localhost:3000`, overridden by `--server`. https only, except localhost |
 | `EPIDLE_CONFIG` | cli | `~/.config/epidle/config.json` (`%APPDATA%\epidle` on Windows): session tokens and language |
 
@@ -73,8 +75,11 @@ App registration (Entra admin center > App registrations):
 
 All routes are under `/api`, JSON in and out, errors are `{ error, message }` with a French `message`.
 
+Clients send `X-Epidle-Client: cli/<version>` or `web/<version>` (their `package.json` version) on every call. Below `MIN_CLI_VERSION` / `MIN_WEB_VERSION` the server answers 426 `client_outdated` with `{ message, minVersion, update }`: the CLI message says to run `npx epidle@latest`, the web one to reload the page. Requests without the header (CLI 0.1.0 and older web tabs) count as version 0.1.0, so they keep working until the CLI minimum is raised above it, and then still show the server's French message. A malformed header gets 400. Never checked: `/health`, `/version`, the browser login routes and logout.
+
 | Route | Auth | What |
 |---|---|---|
+| `GET /version` | none | `{ min: { cli, web }, update: "npx epidle@latest" }`, never refused |
 | `GET /auth/login`, `GET /auth/callback` | none | Web login, authorization code + PKCE |
 | `POST /auth/device`, `POST /auth/device/token` | none | CLI login, device code; poll `token` with the returned `handle` until `status: "ok"` |
 | `POST /auth/logout[?all=1]` | session | Revokes the session, or every session of the player with `all=1` |
@@ -134,6 +139,7 @@ Same screens and rules as the web client, in Ink, fully keyboard driven. Shares 
 
 - **Login:** device code flow. The CLI shows a Microsoft URL and a code (`o` opens the browser), and polls the server until the player has logged in. The session token is saved per server in `EPIDLE_CONFIG`, readable by its owner only (0600).
 - **Shortcuts:** same as the web (`t b c ? l`, `y e f 1-4`, shop `1-8 x`, `v`, `Esc`), plus `q` quit, arrows to pick the dev and the target level of a training, `↑↓ Enter` to buy any shop line or open a player's build, `Tab` to switch between company and pipeline on terminals under 110 columns, `PgUp/PgDn` to scroll small terminals. The AZERTY digit row works without Shift.
+- **Version:** sent on every call from `apps/cli/package.json`. Bump it on every publish, it is what `MIN_CLI_VERSION` compares against. An outdated CLI shows a "Nouvelle version" screen with `npx epidle@latest` (the web shows the same screen with a reload button).
 - **Publishing:** `EPIDLE_PUBLISH_SERVER_URL=https://<EPIDLE_SITE> npm publish` from `apps/cli`: `prepack` builds the bundle with that server as the default and refuses to build without an https URL. Only `dist/epidle.js` ships: the workspace packages are bundled in, `ink`, `react` and `chalk` are regular dependencies.
 
 ## Theming
@@ -205,6 +211,8 @@ Commands run from the repository folder on the server machine. Below, `admin` st
 | Review scripting | `admin suspicious [--hours 72]`: grouped by player and kind, with the last detail |
 | Remove a player | `admin remove <pseudo>` shows what would go; with `--yes` it deletes the player, their companies, sessions and feed events, at once. They can log in again as a new player |
 | Ban a player | `admin remove <pseudo> --ban --reason "<why>" --yes`: same, and their Microsoft account is refused at login. `admin bans`, `admin unban <id>` |
+| Player analytics | `admin analytics [--days 30]`: active players per day, D+1 / D+3 retention by cohort, funnel of the current season by tier, client versions seen in the last 7 days. Counts only, no pseudo and no id. Check the client versions before raising `MIN_CLI_VERSION` |
+| Force a CLI update | Publish the new CLI, then set `MIN_CLI_VERSION` to its version in `.env` and `docker compose up -d`. Older CLIs get the update message on their next request |
 | Backups | Automatic every 6 h and at start, in the `backups` volume, last 28 kept. Manual: `admin backup`. Copy them off the machine regularly: `docker compose cp server:/backups ./backups` |
 | Restore | `docker compose stop server`, then `docker compose run --rm --no-deps --entrypoint sh server -c 'cp /backups/<file> /data/epidle.db && rm -f /data/epidle.db-wal /data/epidle.db-shm'`, then `docker compose start server`. Everything after that backup is lost |
 | Login broken | Check `ENTRA_*` in `.env` and the redirect URI in Entra, then `docker compose up -d` to apply `.env` changes |

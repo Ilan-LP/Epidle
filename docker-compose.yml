@@ -22,6 +22,8 @@ services:
       SEASON_START: ${SEASON_START:-}
       BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-6}
       BACKUP_KEEP: ${BACKUP_KEEP:-28}
+      MIN_CLI_VERSION: ${MIN_CLI_VERSION:-}
+      MIN_WEB_VERSION: ${MIN_WEB_VERSION:-}
     volumes:
       - data:/data
       - backups:/backups
