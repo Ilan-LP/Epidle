@@ -6,6 +6,7 @@ import Fastify, { type FastifyError, type FastifyInstance, type FastifyRequest }
 import { registerApi } from "./api";
 import { BROWSER_AUTH_ROUTES, registerAuth } from "./auth";
 import { backupRotate } from "./backup";
+import { DEFAULT_MIN_VERSIONS, type MinVersions, registerClientVersion } from "./client-version";
 import type { Db } from "./db";
 import type { IdentityProvider } from "./entra";
 import { API_ERRORS, sendError } from "./errors";
@@ -71,6 +72,8 @@ export type AppOptions = {
   seasonAnchor?: number | null;
   /** Runs the season rollover / cleanup job at this interval. Off when unset (tests). */
   maintenanceIntervalMs?: number;
+  /** Oldest client versions accepted. DEFAULT_MIN_VERSIONS when unset. */
+  minVersions?: MinVersions;
   /** Periodic database backups. Off when unset (tests). */
   backup?: { dir: string; intervalMs: number; keep: number };
   trustProxy?: boolean;
@@ -110,6 +113,8 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
   });
 
   registerAuth(app, { db, provider: opts.provider, publicUrl: opts.publicUrl, now });
+  // After the session hook: an outdated client is refused before any route runs.
+  registerClientVersion(app, opts.minVersions ?? DEFAULT_MIN_VERSIONS);
 
   app.setErrorHandler((error: FastifyError, request, reply) => {
     if (error.statusCode === 429) {

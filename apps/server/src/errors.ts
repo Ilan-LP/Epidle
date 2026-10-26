@@ -16,6 +16,7 @@ export const API_ERRORS = {
   login_denied: "Connexion refusée.",
   banned: "Ce compte a été suspendu.",
   not_found: "Introuvable.",
+  client_outdated: "Ta version d'Epidle n'est plus supportée. Mets-la à jour : npx epidle@latest",
   internal: "Erreur du serveur.",
 } as const;
 

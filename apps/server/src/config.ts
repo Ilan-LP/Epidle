@@ -1,4 +1,5 @@
 import { dirname, join } from "node:path";
+import { DEFAULT_MIN_VERSIONS, isVersion, type MinVersions } from "./client-version";
 
 // Server configuration, read once from environment variables at startup.
 
@@ -27,6 +28,8 @@ export interface ServerConfig {
   seasonAnchor: number | null;
   /** Null when BACKUP_DIR is set to an empty string. */
   backup: { dir: string; intervalMs: number; keep: number } | null;
+  /** Oldest client versions accepted (MIN_CLI_VERSION, MIN_WEB_VERSION). */
+  minVersions: MinVersions;
 }
 
 export interface ConfigDefaults {
@@ -68,6 +71,13 @@ function seasonStart(raw: string | undefined): number | null {
     );
   }
   return t;
+}
+
+function minVersion(env: NodeJS.ProcessEnv, name: string, fallback: string): string {
+  const raw = env[name]?.trim();
+  if (!raw) return fallback;
+  if (!isVersion(raw)) throw new Error(`${name} must be a version like 0.2.0, got ${raw}`);
+  return raw;
 }
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
@@ -122,6 +132,10 @@ export function loadConfig(env: NodeJS.ProcessEnv, defaults: ConfigDefaults): Se
           keep: integer(env, "BACKUP_KEEP", 28, 1, 10_000),
         }
       : null,
+    minVersions: {
+      cli: minVersion(env, "MIN_CLI_VERSION", DEFAULT_MIN_VERSIONS.cli),
+      web: minVersion(env, "MIN_WEB_VERSION", DEFAULT_MIN_VERSIONS.web),
+    },
   };
 }
 
