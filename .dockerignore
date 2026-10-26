@@ -2,9 +2,10 @@
 **/dist
 .git
 .github
-.env
-.env.*
-!.env.example
+# In every folder: apps/server/.env would otherwise reach the server image through pnpm deploy.
+**/.env
+**/.env.*
+!**/.env.example
 apps/server/data
 **/*.db
 **/*.db-*
