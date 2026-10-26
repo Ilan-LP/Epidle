@@ -1,5 +1,6 @@
 import { parseArgs } from "node:util";
 import { BALANCE } from "@epidle/core";
+import { ANALYTICS_TIME_ZONE, analyticsReport, type Rate } from "./analytics";
 import { backupRotate, backupTo } from "./backup";
 import type { Db } from "./db";
 import { type Rotation, seasonWeeks } from "./modifiers";
@@ -23,6 +24,8 @@ export const ADMIN_HELP = `Usage: pnpm admin <command>
   suspicious [--hours <n>]           signs of scripting in the last n hours (default 24)
   backup [file]                      online backup to file, or to BACKUP_DIR with rotation
   weeks                              weekly modifiers of the current and next season
+  analytics [--days <n>]             active players per day, D+1 / D+3 retention, tier funnel,
+                                     client versions (last n days, default 14). Counts only
 `;
 
 export interface AdminContext {
@@ -104,6 +107,7 @@ export async function runAdmin(argv: string[], ctx: AdminContext): Promise<numbe
       yes: { type: "boolean", default: false },
       reason: { type: "string", default: "" },
       hours: { type: "string", default: "24" },
+      days: { type: "string", default: "14" },
       help: { type: "boolean", short: "h", default: false },
     },
   });
@@ -226,12 +230,60 @@ export async function runAdmin(argv: string[], ctx: AdminContext): Promise<numbe
       show(season.id + 1, seasonWeeks(ctx.rotation, season.id + 1), season.endsAt);
       return 0;
     }
+    case "analytics": {
+      const days = Number(values.days);
+      if (!Number.isInteger(days) || days < 1 || days > 366)
+        return usage(out, "--days must be an integer between 1 and 366");
+      printAnalytics(out, analyticsReport(db, now, days));
+      return 0;
+    }
     case "help":
       out(ADMIN_HELP);
       return 0;
     default:
       return usage(out, command ? `unknown command ${command}` : "no command");
   }
+}
+
+const pct = (n: number, of: number) => (of > 0 ? `${Math.round((n / of) * 100)}%` : "-");
+const rate = (r: Rate) => `${pct(r.retained, r.eligible)} (${r.retained}/${r.eligible})`;
+
+function printAnalytics(out: (line: string) => void, r: ReturnType<typeof analyticsReport>) {
+  out(`Active players per day (${ANALYTICS_TIME_ZONE}, today ${r.today} is not over)`);
+  table(out, r.daily);
+  out("");
+  out("Retention by cohort (first active day). D+k: active on the k-th day after it");
+  table(
+    out,
+    r.cohorts.map((c) => ({
+      cohort: c.day,
+      players: c.players,
+      d1: c.d1 === null ? null : `${c.d1} ${pct(c.d1, c.players)}`,
+      d3: c.d3 === null ? null : `${c.d3} ${pct(c.d3, c.players)}`,
+    })),
+  );
+  out(`All cohorts: D+1 ${rate(r.retention.d1)}, D+3 ${rate(r.retention.d3)}`);
+  out("");
+  if (!r.funnel) out("Funnel: no company yet");
+  else {
+    const f = r.funnel;
+    const all = f.tiers[0]?.players ?? 0;
+    out(`Funnel, season ${f.seasonId}: players who reached each tier`);
+    table(
+      out,
+      f.tiers.map((t, i) => ({
+        tier: t.tier,
+        name: t.name,
+        unlocks: t.unlocks,
+        players: t.players,
+        of_all: pct(t.players, all),
+        of_previous: i === 0 ? null : pct(t.players, f.tiers[i - 1]?.players ?? 0),
+      })),
+    );
+  }
+  out("");
+  out("Clients of the players active in the last 7 days");
+  table(out, r.clients);
 }
 
 function usage(out: (line: string) => void, message: string): number {

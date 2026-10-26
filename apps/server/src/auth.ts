@@ -21,7 +21,7 @@ export const sessionCookie = (secure: boolean) =>
   secure ? "__Host-epidle_session" : "epidle_session";
 /** Binds a web login to the browser that started it (login CSRF). */
 const LOGIN_COOKIE = "epidle_login";
-const SESSION_MS = 30 * 24 * 3600 * 1000;
+export const SESSION_MS = 30 * 24 * 3600 * 1000;
 const LOGIN_MS = 10 * 60 * 1000;
 // Per IP: a whole campus behind one NAT can log in at the same time, so not too tight.
 // The device code start calls Microsoft, the browser routes only touch our database.

@@ -3,6 +3,7 @@ import type { HealthResponse } from "@epidle/core";
 import cookie from "@fastify/cookie";
 import rateLimit from "@fastify/rate-limit";
 import Fastify, { type FastifyError, type FastifyInstance, type FastifyRequest } from "fastify";
+import { registerAnalytics } from "./analytics";
 import { registerApi } from "./api";
 import { BROWSER_AUTH_ROUTES, registerAuth } from "./auth";
 import { backupRotate } from "./backup";
@@ -141,6 +142,7 @@ export async function buildApp(opts: AppOptions): Promise<FastifyInstance> {
 
   const anchor = opts.seasonAnchor ?? null;
   registerApi(app, db, now, rotation, anchor);
+  registerAnalytics(app, db, now);
 
   // Responses the official clients never cause. Logged for review, never blocked here.
   app.addHook("onResponse", async (request, reply) => {

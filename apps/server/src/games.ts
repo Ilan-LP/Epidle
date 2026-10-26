@@ -9,6 +9,7 @@ import {
   type SeasonWeeks,
   weekIndex,
 } from "@epidle/core";
+import { recordMilestones } from "./analytics";
 import type { Db } from "./db";
 import { recordProgress, trackRanks } from "./feed";
 
@@ -104,6 +105,7 @@ function writeGame(
   now: number,
 ): void {
   recordProgress(db, season, userId, before, state);
+  recordMilestones(db, season.id, season.startsAt, userId, before, state);
   db.prepare(
     `INSERT INTO games (user_id, season_id, state, score, week, week_base, joined_at)
      VALUES (@userId, @seasonId, @state, @score, @week, @weekBase, @now)

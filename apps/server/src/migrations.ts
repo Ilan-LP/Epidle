@@ -1,8 +1,13 @@
+import { backfillAnalytics } from "./analytics";
 import type { Db } from "./db";
 
 // Append only: never edit a migration that has shipped, add a new one.
-// The index + 1 is stored in PRAGMA user_version.
-export const MIGRATIONS: readonly string[] = [
+// The index + 1 is stored in PRAGMA user_version. A step is SQL, or SQL then a function for data
+// SQL cannot compute. Each runs in one transaction with its version bump. From step 5 on, steps
+// are also idempotent (IF NOT EXISTS, INSERT OR IGNORE) and never drop or rewrite data.
+export type Migration = string | { sql: string; data: (db: Db) => void };
+
+export const MIGRATIONS: readonly Migration[] = [
   `
   -- Only the Microsoft object id and the pseudo: no name, no email.
   CREATE TABLE users (
@@ -125,6 +130,35 @@ export const MIGRATIONS: readonly string[] = [
     PRIMARY KEY (user_id, season_id, kind)
   );
   `,
+  {
+    sql: `
+  -- Own analytics (analytics.ts). No IP, no user agent; cascades when a player is removed.
+  -- client: last version seen, like "cli/0.2.0", or "legacy" before clients sent one.
+  CREATE TABLE IF NOT EXISTS player_stats (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    first_seen INTEGER NOT NULL,
+    last_seen INTEGER NOT NULL,
+    client TEXT
+  );
+  -- One row per player and calendar day (Europe/Paris, "YYYY-MM-DD") with any request.
+  CREATE TABLE IF NOT EXISTS player_days (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    day TEXT NOT NULL,
+    PRIMARY KEY (user_id, day)
+  ) WITHOUT ROWID;
+  CREATE INDEX IF NOT EXISTS player_days_day ON player_days(day);
+  -- First time a company reached each tier in a season (tier 0: the company exists).
+  CREATE TABLE IF NOT EXISTS milestones (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    season_id INTEGER NOT NULL REFERENCES seasons(id),
+    tier INTEGER NOT NULL,
+    at INTEGER NOT NULL,
+    PRIMARY KEY (user_id, season_id, tier)
+  );
+  CREATE INDEX IF NOT EXISTS milestones_season ON milestones(season_id, tier);
+  `,
+    data: backfillAnalytics,
+  },
 ];
 
 export function migrate(db: Db): void {
@@ -135,8 +169,13 @@ export function migrate(db: Db): void {
     );
   }
   for (let v = current; v < MIGRATIONS.length; v++) {
+    const step = MIGRATIONS[v] ?? "";
     db.transaction(() => {
-      db.exec(MIGRATIONS[v] ?? "");
+      if (typeof step === "string") db.exec(step);
+      else {
+        db.exec(step.sql);
+        step.data(db);
+      }
       db.pragma(`user_version = ${v + 1}`);
     })();
   }
