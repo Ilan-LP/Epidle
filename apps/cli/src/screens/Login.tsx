@@ -1,4 +1,4 @@
-import { ApiError, type DeviceLogin, formatDuration, LOGO } from "@epidle/api-client";
+import { ApiError, type DeviceLogin, formatDuration, isOutdated, LOGO } from "@epidle/api-client";
 import { Box, Text, useApp } from "ink";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { openBrowser } from "../browser";
@@ -12,7 +12,14 @@ type Step =
   | { name: "failed"; message: string };
 
 /** Device code flow: the player logs in on any browser, this terminal polls the server. */
-export function Login({ onToken }: { onToken: (token: string) => void }) {
+export function Login({
+  onToken,
+  onOutdated,
+}: {
+  onToken: (token: string) => void;
+  /** The server refuses this CLI version: App shows how to update instead. */
+  onOutdated: (message: string) => void;
+}) {
   const { api } = useClient();
   const { exit } = useApp();
   const [step, setStep] = useState<Step>({ name: "starting" });
@@ -20,6 +27,8 @@ export function Login({ onToken }: { onToken: (token: string) => void }) {
   const attempt = useRef(0);
   const done = useRef(onToken);
   done.current = onToken;
+  const outdated = useRef(onOutdated);
+  outdated.current = onOutdated;
 
   const start = useCallback(async () => {
     const id = ++attempt.current;
@@ -29,8 +38,9 @@ export function Login({ onToken }: { onToken: (token: string) => void }) {
       if (id === attempt.current)
         setStep({ name: "waiting", login, expiresAt: performance.now() + login.expiresIn * 1000 });
     } catch (e) {
-      if (id === attempt.current)
-        setStep({ name: "failed", message: e instanceof ApiError ? e.message : String(e) });
+      if (id !== attempt.current) return;
+      if (isOutdated(e)) outdated.current(e.message);
+      else setStep({ name: "failed", message: e instanceof ApiError ? e.message : String(e) });
     }
   }, [api]);
 

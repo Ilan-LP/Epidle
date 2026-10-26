@@ -43,9 +43,12 @@ export interface GameOptions {
   onWake?: (refresh: () => void) => () => void;
 }
 
-/** Turns an error into a message, or calls `onAuthLost` and returns null for 401/403. */
+/**
+ * Turns an error into a message, or calls `onAuthLost` and returns null for 401/403, and for 426
+ * (outdated client): the app checks the session again and shows its "update" screen.
+ */
 export function errorMessage(e: unknown, onAuthLost: () => void): string | null {
-  if (e instanceof ApiError && (e.status === 401 || e.status === 403)) {
+  if (e instanceof ApiError && (e.status === 401 || e.status === 403 || e.status === 426)) {
     onAuthLost();
     return null;
   }

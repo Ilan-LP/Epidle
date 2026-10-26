@@ -1,6 +1,6 @@
 {
   "name": "epidle",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Epidle dans le terminal : monte ta boîte de dev, forme tes juniors, règle tes moulis.",
   "license": "MIT",
   "type": "module",
