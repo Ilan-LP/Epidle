@@ -5,6 +5,7 @@ import { renderToString } from "ink";
 import { describe, expect, it } from "vitest";
 import { WeekBanner } from "../Game";
 import { Dashboard } from "./Dashboard";
+import { Outdated } from "./Outdated";
 import { osc52 } from "./Share";
 import { Shop } from "./Shop";
 
@@ -65,6 +66,15 @@ describe("screens", () => {
     const out = renderToString(<WeekBanner game={game} />, { columns: 200 });
     expect(out).toContain("Semaine 1/2 · Soldes du BDE (prix des embauches -40 %)");
     expect(out).toContain("ensuite : semaine normale");
+  });
+
+  it("an outdated CLI shows the server message and the update command", () => {
+    const out = renderToString(<Outdated message="Ta version d'Epidle n'est plus supportée." />, {
+      columns: 80,
+    });
+    expect(out).toContain("Nouvelle version d'Epidle");
+    expect(out).toContain("Ta version d'Epidle n'est plus supportée.");
+    expect(out).toContain("npx epidle@latest");
   });
 
   it("copies with an OSC 52 sequence", () => {

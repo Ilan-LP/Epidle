@@ -22,7 +22,11 @@ if (args.command === "version") {
 }
 
 const store = createStore(settingsPath(process.env), args.server);
-const api = createApi({ baseUrl: args.server, token: store.token });
+const api = createApi({
+  baseUrl: args.server,
+  token: store.token,
+  client: { kind: "cli", version: pkg.version },
+});
 
 if (args.command === "logout") {
   if (store.token()) await api.logout().catch(() => undefined);

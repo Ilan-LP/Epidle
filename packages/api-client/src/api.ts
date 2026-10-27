@@ -132,22 +132,42 @@ export interface DeviceLogin {
 
 export type DevicePoll = { status: "pending"; interval: number } | { status: "ok"; token: string };
 
+/** Sent on every call as `X-Epidle-Client: <kind>/<version>`, checked against the server minimum. */
+export interface ClientInfo {
+  kind: "cli" | "web";
+  /** x.y.z, from the client's package.json. */
+  version: string;
+}
+
+/** How a player updates the terminal client. The server's 426 message says the same. */
+export const UPDATE_COMMAND = "npx epidle@latest";
+
+/** The server refuses this client version (426): the player must update. */
+export const isOutdated = (e: unknown): e is ApiError => e instanceof ApiError && e.status === 426;
+
 export interface ApiOptions {
   /** Server origin, e.g. "https://epidle.example.org". Empty for same origin (web). */
   baseUrl?: string;
   /** Session token sent as a bearer (CLI). The web client relies on its httpOnly cookie. */
   token?: () => string | null;
+  client?: ClientInfo;
   fetch?: typeof fetch;
 }
 
 export type Api = ReturnType<typeof createApi>;
 
-export function createApi({ baseUrl = "", token, fetch: doFetch = fetch }: ApiOptions = {}) {
+export function createApi({
+  baseUrl = "",
+  token,
+  client,
+  fetch: doFetch = fetch,
+}: ApiOptions = {}) {
   const root = baseUrl.replace(/\/+$/, "");
 
   async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
     const headers: Record<string, string> = {};
     if (body !== undefined) headers["content-type"] = "application/json";
+    if (client) headers["x-epidle-client"] = `${client.kind}/${client.version}`;
     const bearer = token?.();
     if (bearer) headers.authorization = `Bearer ${bearer}`;
     let res: Response;
@@ -176,6 +196,9 @@ export function createApi({ baseUrl = "", token, fetch: doFetch = fetch }: ApiOp
   }
 
   return {
+    /** Oldest client versions the server accepts. Never refused, even to an outdated client. */
+    version: () =>
+      request<{ min: Record<ClientInfo["kind"], string>; update: string }>("GET", "/api/version"),
     me: () => request<{ pseudo: string | null }>("GET", "/api/me"),
     setPseudo: (pseudo: string) => request<{ pseudo: string }>("PUT", "/api/me/pseudo", { pseudo }),
     state: () => request<GameView>("GET", "/api/state"),

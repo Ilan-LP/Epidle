@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ApiError, createApi, newRequestId } from "./api";
+import { ApiError, createApi, isOutdated, newRequestId } from "./api";
 
 function fakeFetch(status: number, body: unknown) {
   const calls: { url: string; init: RequestInit }[] = [];
@@ -24,6 +24,24 @@ describe("createApi", () => {
     await createApi({ fetch: fn }).state();
     expect(calls[0]?.url).toBe("/api/state");
     expect(calls[0]?.init.headers).not.toHaveProperty("authorization");
+  });
+
+  it("sends the client version on every call when given", async () => {
+    const { fn, calls } = fakeFetch(200, {});
+    await createApi({ fetch: fn, client: { kind: "cli", version: "0.2.0" } }).state();
+    await createApi({ fetch: fn }).state();
+    expect(calls[0]?.init.headers).toHaveProperty("x-epidle-client", "cli/0.2.0");
+    expect(calls[1]?.init.headers).not.toHaveProperty("x-epidle-client");
+  });
+
+  it("recognizes the outdated client error", async () => {
+    const { fn } = fakeFetch(426, { error: "client_outdated", message: "Mets-la à jour" });
+    const err = await createApi({ fetch: fn })
+      .me()
+      .catch((e: unknown) => e);
+    expect(isOutdated(err)).toBe(true);
+    expect(err).toMatchObject({ code: "client_outdated", message: "Mets-la à jour" });
+    expect(isOutdated(new ApiError(401, "unauthorized", "", null))).toBe(false);
   });
 
   it("adds a fresh requestId to every intent", async () => {

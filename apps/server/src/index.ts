@@ -24,6 +24,7 @@ const app = await buildApp({
   trustProxy: config.trustProxy,
   rotation,
   seasonAnchor: config.seasonAnchor,
+  minVersions: config.minVersions,
   maintenanceIntervalMs: 60_000,
   backup: config.backup ?? undefined,
   logger: true,

@@ -1,4 +1,4 @@
-import { ApiError } from "@epidle/api-client";
+import { ApiError, isOutdated } from "@epidle/api-client";
 import { useCallback, useEffect, useState } from "react";
 import { api } from "./api";
 import { Game } from "./Game";
@@ -10,6 +10,7 @@ import { PseudoForm } from "./screens/PseudoForm";
 type Auth =
   | { status: "loading" }
   | { status: "offline"; message: string }
+  | { status: "outdated"; message: string }
   | { status: "anon" }
   | { status: "pseudo" }
   | { status: "player"; pseudo: string };
@@ -35,6 +36,7 @@ export function App() {
       setAuth(me.pseudo ? { status: "player", pseudo: me.pseudo } : { status: "pseudo" });
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) setAuth({ status: "anon" });
+      else if (isOutdated(e)) setAuth({ status: "outdated", message: e.message });
       else
         setAuth({
           status: "offline",
@@ -76,6 +78,17 @@ export function App() {
             <p>
               <button type="button" className="btn" onClick={check}>
                 Réessayer
+              </button>
+            </p>
+          </div>
+        )}
+        {auth.status === "outdated" && (
+          <div className="center">
+            <p className="warn">Nouvelle version d'Epidle</p>
+            <p>{auth.message}</p>
+            <p>
+              <button type="button" className="btn" onClick={() => window.location.reload()}>
+                Recharger la page
               </button>
             </p>
           </div>
