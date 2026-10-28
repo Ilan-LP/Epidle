@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { buildApp } from "./app";
 import { openDb } from "./db";
-import { fakeProvider, testApp } from "./test-utils";
+import { fakeProvider, LEGACY_MIN_VERSIONS, testApp } from "./test-utils";
 
 let t: Awaited<ReturnType<typeof testApp>>;
 beforeEach(async () => {
@@ -217,6 +217,7 @@ describe("sessions", () => {
       db: openDb(":memory:"),
       provider: fake.provider,
       publicUrl: "https://epidle.example.org",
+      minVersions: LEGACY_MIN_VERSIONS,
     });
     const start = await app.inject({ method: "GET", url: "/api/auth/login" });
     const state = new URL(start.headers.location as string).searchParams.get("state") as string;

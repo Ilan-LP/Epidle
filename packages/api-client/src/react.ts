@@ -1,6 +1,14 @@
 import { INTENT_ERROR_MESSAGES } from "@epidle/core";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { type Api, ApiError, type GameView, type Intent, isGameView } from "./api";
+import {
+  type Api,
+  ApiError,
+  type GameView,
+  type Intent,
+  isGameView,
+  isMouliCheck,
+  type MouliChallenge,
+} from "./api";
 import { newer, type Projection, precheck, project, type Snapshot } from "./projection";
 
 // React hooks shared by the web (react-dom) and terminal (Ink) clients. Only React and the
@@ -34,6 +42,10 @@ export interface Game {
   log: LogLine[];
   act: Act;
   say: (tone: LogLine["tone"], text: string) => void;
+  challenge: MouliChallenge | null;
+  solveChallenge: (
+    answer: string,
+  ) => Promise<{ ok: boolean; error?: string; remainingAttempts?: number }>;
 }
 
 export interface GameOptions {
@@ -48,7 +60,12 @@ export interface GameOptions {
  * (outdated client): the app checks the session again and shows its "update" screen.
  */
 export function errorMessage(e: unknown, onAuthLost: () => void): string | null {
-  if (e instanceof ApiError && (e.status === 401 || e.status === 403 || e.status === 426)) {
+  if (
+    e instanceof ApiError &&
+    (e.status === 401 ||
+      (e.status === 403 && e.code !== "mouli_check_required") ||
+      e.status === 426)
+  ) {
     onAuthLost();
     return null;
   }
@@ -60,6 +77,7 @@ let nextLogId = 1;
 export function useGame(api: Api, onAuthLost: () => void, options: GameOptions = {}): Game {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [challenge, setChallenge] = useState<MouliChallenge | null>(null);
   const [log, setLog] = useState<LogLine[]>([]);
   const lastFetch = useRef(0);
   const authLost = useRef(onAuthLost);
@@ -126,6 +144,11 @@ export function useGame(api: Api, onAuthLost: () => void, options: GameOptions =
         if (r.error) say("err", `${label} : ${r.applied}/${asked}, ${r.message}`);
         else say("ok", `${label} : ok`);
       } catch (e) {
+        if (isMouliCheck(e)) {
+          setChallenge(e.body.challenge);
+          say("err", "Contrôle de Mouli anti-bot requis.");
+          return;
+        }
         if (e instanceof ApiError && isGameView(e.body)) accept(e.body);
         const message = errorMessage(e, () => authLost.current());
         if (message) say("err", `${label} : ${message}`);
@@ -134,7 +157,29 @@ export function useGame(api: Api, onAuthLost: () => void, options: GameOptions =
     [api, accept, say],
   );
 
-  return { projection, error, log, act, say };
+  const solveChallenge = useCallback(
+    async (
+      answer: string,
+    ): Promise<{ ok: boolean; error?: string; remainingAttempts?: number }> => {
+      if (!challenge) return { ok: false, error: "no_challenge" };
+      try {
+        await api.solveMouliCheck(challenge.id, answer);
+        setChallenge(null);
+        say("ok", "Mouli Check validé avec succès !");
+        void refresh();
+        return { ok: true };
+      } catch (e) {
+        if (e instanceof ApiError && typeof e.body === "object" && e.body !== null) {
+          const body = e.body as { error?: string; remainingAttempts?: number };
+          return { ok: false, error: body.error, remainingAttempts: body.remainingAttempts };
+        }
+        return { ok: false, error: "network" };
+      }
+    },
+    [api, challenge, say, refresh],
+  );
+
+  return { projection, error, log, act, say, challenge, solveChallenge };
 }
 
 /** Fetches on mount, when `key` changes and every `intervalMs`. */

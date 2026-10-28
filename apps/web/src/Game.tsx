@@ -16,6 +16,7 @@ import { Header } from "./Shell";
 import { Dashboard } from "./screens/Dashboard";
 import { Help } from "./screens/Help";
 import { Leaderboard } from "./screens/Leaderboard";
+import { MouliCheckOverlay } from "./screens/MouliCheckOverlay";
 import { PlayerBuild } from "./screens/PlayerBuild";
 import { PseudoForm } from "./screens/PseudoForm";
 import { Shop } from "./screens/Shop";
@@ -69,15 +70,19 @@ export function Game({ pseudo, lang, setLang, onAuthLost, onPseudo, onLogout }: 
       <StatusBar game={game} />
       {game.projection && <WeekBanner p={game.projection} />}
       <main>
-        <Screen
-          route={route}
-          game={game}
-          pseudo={pseudo}
-          lang={lang}
-          onAuthLost={onAuthLost}
-          onPseudo={onPseudo}
-          onLogout={onLogout}
-        />
+        {game.challenge ? (
+          <MouliCheckOverlay challenge={game.challenge} onSolve={game.solveChallenge} />
+        ) : (
+          <Screen
+            route={route}
+            game={game}
+            pseudo={pseudo}
+            lang={lang}
+            onAuthLost={onAuthLost}
+            onPseudo={onPseudo}
+            onLogout={onLogout}
+          />
+        )}
       </main>
       <Log game={game} lang={lang} />
     </div>

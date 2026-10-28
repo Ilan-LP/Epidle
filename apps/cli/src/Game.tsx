@@ -15,6 +15,7 @@ import { useKeys } from "./keys";
 import { Dashboard } from "./screens/Dashboard";
 import { Help } from "./screens/Help";
 import { Leaderboard } from "./screens/Leaderboard";
+import { MouliCheck } from "./screens/MouliCheck";
 import { PlayerBuild } from "./screens/PlayerBuild";
 import { PseudoForm } from "./screens/PseudoForm";
 import { Share } from "./screens/Share";
@@ -60,7 +61,7 @@ export function Game({ pseudo, setLang, onAuthLost, onPseudo, onLogout }: Props)
     setScroll(0);
   };
   const game = useGame(onAuthLost);
-  const typing = route.name === "pseudo";
+  const typing = route.name === "pseudo" || !!game.challenge;
 
   useKeys(
     {
@@ -152,6 +153,10 @@ function Screen({
   height: number;
   wide: boolean;
 } & Omit<Props, "setLang">) {
+  if (game.challenge) {
+    return <MouliCheck challenge={game.challenge} onSolve={game.solveChallenge} />;
+  }
+
   // Screens that don't need the game state render right away.
   if (route.name === "leaderboard")
     return (
@@ -229,7 +234,7 @@ function StatusBar({ game }: { game: GameData }) {
 }
 
 /** The weekly modifier, on one line under the status bar: it changes what is worth buying. */
-export function WeekBanner({ game }: { game: GameData }) {
+export function WeekBanner({ game }: { game: Pick<GameData, "projection"> }) {
   const p = game.projection;
   if (!p) return <Text> </Text>;
   const w = currentWeek(p);

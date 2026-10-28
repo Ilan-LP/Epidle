@@ -1,6 +1,7 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { buildApp, redactUrl } from "./app";
 import { openDb } from "./db";
+import { LEGACY_MIN_VERSIONS } from "./test-utils";
 
 describe("GET /api/health", async () => {
   const app = await buildApp({ db: openDb(":memory:"), provider: null, publicUrl: "http://x" });
@@ -26,6 +27,7 @@ describe("behind the reverse proxy", () => {
       provider: null,
       publicUrl: "http://x",
       trustProxy: true,
+      minVersions: LEGACY_MIN_VERSIONS,
     });
     app.get("/ip", async (request) => ({ ip: request.ip }));
     const res = await app.inject({
