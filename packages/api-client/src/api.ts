@@ -80,6 +80,23 @@ export type Intent =
   | { type: "upgradeMouli"; stage: StageId; count?: number }
   | { type: "setStrictness"; stage: StageId; level: number };
 
+export interface MouliChallenge {
+  id: string;
+  ascii: string[];
+  expiresIn: number;
+}
+
+export function isMouliCheck(e: unknown): e is ApiError & { body: { challenge: MouliChallenge } } {
+  return (
+    e instanceof ApiError &&
+    e.status === 403 &&
+    e.code === "mouli_check_required" &&
+    typeof e.body === "object" &&
+    e.body !== null &&
+    "challenge" in e.body
+  );
+}
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -216,6 +233,9 @@ export function createApi({
     /** 410 once expired, 403 if the player refused. */
     devicePoll: (handle: string) =>
       request<DevicePoll>("POST", "/api/auth/device/token", { handle }),
+    /** Solves an anti-bot Mouli Check challenge. */
+    solveMouliCheck: (id: string, answer: string) =>
+      request<{ ok: boolean }>("POST", "/api/mouli-check/solve", { id, answer }),
   };
 }
 
