@@ -19,7 +19,7 @@ export const CLIENT_HEADER = "x-epidle-client";
  * Raise one when the server stops supporting older clients (an API change they cannot handle),
  * or with MIN_CLI_VERSION / MIN_WEB_VERSION without a redeploy (a buggy published CLI).
  */
-export const DEFAULT_MIN_VERSIONS: MinVersions = { cli: "0.1.0", web: "0.0.0" };
+export const DEFAULT_MIN_VERSIONS: MinVersions = { cli: "0.3.0", web: "0.2.0" };
 
 /**
  * CLI 0.1.0 and the web clients before it send no header. Such a request is taken as this

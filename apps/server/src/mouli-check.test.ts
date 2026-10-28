@@ -5,6 +5,7 @@ import {
   CHAR_SET,
   flagMouliCheck,
   getOrCreateChallenge,
+  INITIAL_GRACE_PERIOD_MS,
   isMouliCheckRequired,
   randomCode,
   renderAscii,
@@ -14,7 +15,7 @@ import {
 import { testApp } from "./test-utils";
 
 describe("mouli-check ASCII rendering", () => {
-  it("renders 5 lines of ASCII for any supported string", () => {
+  it("renders 4 lines of ASCII for any supported string", () => {
     const ascii = renderAscii("7K4B");
     expect(ascii).toHaveLength(4);
     // Every row should be a non-empty string of equal length
@@ -44,8 +45,13 @@ describe("mouli-check database state & verification", () => {
     "INSERT INTO users (id, ms_oid, pseudo, created_at) VALUES (1, 'oid-1', 'TekBot', ?)",
   ).run(now);
 
-  it("is not required initially by default", () => {
+  it("is not required during the new account grace period", () => {
     expect(isMouliCheckRequired(db, 1, now)).toBe(false);
+    expect(isMouliCheckRequired(db, 1, now + INITIAL_GRACE_PERIOD_MS)).toBe(false);
+  });
+
+  it("is required once the grace period is over, even if never flagged", () => {
+    expect(isMouliCheckRequired(db, 1, now + INITIAL_GRACE_PERIOD_MS + 1)).toBe(true);
   });
 
   it("becomes required when flagged manually or by detection", () => {

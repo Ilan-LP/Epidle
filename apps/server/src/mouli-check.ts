@@ -84,16 +84,21 @@ export function randomCode(length = 4): string {
 
 /**
  * Checks whether a player is required to pass a Mouli Check before continuing.
+ * Everyone passes one every VERIFIED_DURATION_MS; a new account gets INITIAL_GRACE_PERIOD_MS first.
  */
 export function isMouliCheckRequired(db: Db, userId: number, now: number): boolean {
   const row = db
-    .prepare("SELECT verified_until, flagged FROM mouli_status WHERE user_id = ?")
-    .get(userId) as { verified_until: number; flagged: number } | undefined;
+    .prepare(
+      `SELECT u.created_at, m.verified_until, m.flagged
+       FROM users u LEFT JOIN mouli_status m ON m.user_id = u.id WHERE u.id = ?`,
+    )
+    .get(userId) as
+    | { created_at: number; verified_until: number | null; flagged: number | null }
+    | undefined;
   if (!row) return false;
   if (row.flagged === 1) return true;
-  // If the player has a set expiration that has passed, a check is needed
-  if (row.verified_until > 0 && now > row.verified_until) return true;
-  return false;
+  if (row.verified_until) return now > row.verified_until;
+  return now > row.created_at + INITIAL_GRACE_PERIOD_MS;
 }
 
 /** Marks a user as flagged for an immediate Mouli Check. */
