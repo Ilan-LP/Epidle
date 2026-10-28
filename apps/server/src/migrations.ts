@@ -159,6 +159,24 @@ export const MIGRATIONS: readonly Migration[] = [
   `,
     data: backfillAnalytics,
   },
+  `
+  -- Anti-bot Mouli Check: verification status and active challenges
+  CREATE TABLE IF NOT EXISTS mouli_status (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    verified_until INTEGER NOT NULL DEFAULT 0,
+    flagged INTEGER NOT NULL DEFAULT 0
+  );
+
+  CREATE TABLE IF NOT EXISTS mouli_challenges (
+    id TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    answer_hash TEXT NOT NULL,
+    raw_code TEXT NOT NULL,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    expires_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS mouli_challenges_user ON mouli_challenges(user_id);
+  `,
 ];
 
 export function migrate(db: Db): void {
