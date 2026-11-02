@@ -8,7 +8,7 @@ import {
 } from "./client-version";
 import { loadConfig } from "./config";
 import { openDb } from "./db";
-import { testApp } from "./test-utils";
+import { LEGACY_MIN_VERSIONS, testApp } from "./test-utils";
 
 describe("versions", () => {
   it("compare numerically, not as text", () => {
@@ -34,7 +34,7 @@ describe("versions", () => {
     expect(outdatedMessage({ kind: "web", version: "0.2.9" }, min)).toContain("Recharge la page");
     // No header: a CLI 0.1.0 or an old web tab, we cannot tell which.
     expect(outdatedMessage(null, min)).toMatch(/npx epidle@latest.*recharge la page/);
-    expect(outdatedMessage(null, DEFAULT_MIN_VERSIONS)).toBeNull();
+    expect(outdatedMessage(null, LEGACY_MIN_VERSIONS)).toBeNull();
   });
 
   it("come from the environment, with defaults", () => {
@@ -94,9 +94,10 @@ describe("version check", () => {
     expect((await me("curl/8.0.0")).statusCode).toBe(400);
   });
 
-  it("accepts clients without a header until the CLI minimum passes 0.1.0", async () => {
-    expect((await (await app(DEFAULT_MIN_VERSIONS)).inject("/api/me")).statusCode).toBe(401);
+  it("accepts clients without a header only while the CLI minimum is 0.1.0", async () => {
+    expect((await (await app(LEGACY_MIN_VERSIONS)).inject("/api/me")).statusCode).toBe(401);
     expect((await (await app()).inject("/api/me")).statusCode).toBe(426);
+    expect((await (await app(DEFAULT_MIN_VERSIONS)).inject("/api/me")).statusCode).toBe(426);
   });
 
   it("never blocks the version, health, browser login and logout routes", async () => {

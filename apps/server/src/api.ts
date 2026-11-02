@@ -8,6 +8,7 @@ import { weekFeed } from "./feed";
 import { loadGame, type Season, saveGame, stateBalance } from "./games";
 import { applyIntent, INTENT_SCHEMA, type Intent } from "./intents";
 import type { Rotation } from "./modifiers";
+import { getOrCreateChallenge, isMouliCheckRequired, solveChallenge } from "./mouli-check";
 import { PSEUDO_PATTERN, pseudoRefusal, setPseudo } from "./pseudo";
 import { currentSeason } from "./seasons";
 
@@ -154,6 +155,14 @@ export function registerApi(
       const t = now();
       const s = season(t);
       const userId = request.user?.id as number;
+      if (isMouliCheckRequired(db, userId, t)) {
+        const challenge = getOrCreateChallenge(db, userId, t);
+        return reply.code(403).send({
+          error: "mouli_check_required",
+          message: "Contrôle de Mouli anti-bot requis. Résous le défi affiché.",
+          challenge,
+        });
+      }
       const intent = request.body;
       // Synchronous and in one transaction: no other request can interleave, and a request id
       // is only consumed if the intent was processed.
@@ -248,6 +257,37 @@ export function registerApi(
         ...buildView(loadGame(db, row.id, s, t)),
         badges: awardsOf(db, row.id),
       };
+    },
+  );
+
+  app.post<{ Body: { id: string; answer: string } }>(
+    "/api/mouli-check/solve",
+    {
+      preHandler: requireUser,
+      schema: {
+        body: {
+          type: "object",
+          additionalProperties: false,
+          required: ["id", "answer"],
+          properties: {
+            id: { type: "string", minLength: 1, maxLength: 64 },
+            answer: { type: "string", minLength: 1, maxLength: 32 },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const t = now();
+      const userId = request.user?.id as number;
+      const { id, answer } = request.body;
+      const result = solveChallenge(db, userId, id, answer, t);
+      if (!result.ok) {
+        return reply.code(400).send({
+          error: result.error,
+          remainingAttempts: "remainingAttempts" in result ? result.remainingAttempts : 0,
+        });
+      }
+      return { ok: true };
     },
   );
 }

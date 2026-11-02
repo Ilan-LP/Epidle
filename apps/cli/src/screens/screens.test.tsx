@@ -5,6 +5,7 @@ import { renderToString } from "ink";
 import { describe, expect, it } from "vitest";
 import { WeekBanner } from "../Game";
 import { Dashboard } from "./Dashboard";
+import { MouliCheck } from "./MouliCheck";
 import { Outdated } from "./Outdated";
 import { osc52 } from "./Share";
 import { Shop } from "./Shop";
@@ -100,5 +101,21 @@ describe("screens", () => {
     expect(out).toContain("[1] Junior");
     expect(out).toContain("Salle de formation");
     expect(out).toMatch(/palier \S+/);
+  });
+
+  it("renders MouliCheck with challenge ascii art and prompt", () => {
+    const challenge = {
+      id: "ch-123",
+      ascii: ["███", " █ ", " █ "],
+      expiresIn: 120,
+    };
+    const out = renderToString(
+      <MouliCheck challenge={challenge} onSolve={async () => ({ ok: true })} />,
+      { columns: 80 },
+    );
+    expect(out).toContain("CONTRÔLE DE MOULI (Anti-Bot)");
+    expect(out).toContain("Prouve ta présence humaine");
+    expect(out).toContain("███");
+    expect(out).toContain("code>");
   });
 });

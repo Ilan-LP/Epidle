@@ -17,6 +17,7 @@ export const API_ERRORS = {
   banned: "Ce compte a été suspendu.",
   not_found: "Introuvable.",
   client_outdated: "Ta version d'Epidle n'est plus supportée. Mets-la à jour : npx epidle@latest",
+  mouli_check_required: "Contrôle de Mouli anti-bot requis. Résous le défi affiché.",
   internal: "Erreur du serveur.",
 } as const;
 

@@ -4,6 +4,7 @@ import { ANALYTICS_TIME_ZONE, analyticsReport, type Rate } from "./analytics";
 import { backupRotate, backupTo } from "./backup";
 import type { Db } from "./db";
 import { type Rotation, seasonWeeks } from "./modifiers";
+import { flagMouliCheck } from "./mouli-check";
 import { PSEUDO_PATTERN, pseudoRefusal, setPseudo } from "./pseudo";
 import { currentSeason } from "./seasons";
 
@@ -22,6 +23,7 @@ export const ADMIN_HELP = `Usage: pnpm admin <command>
   bans                               banned accounts
   unban <id>                         lift a ban (id from "bans")
   suspicious [--hours <n>]           signs of scripting in the last n hours (default 24)
+  mouli-check <pseudo>               flag a player for an anti-bot Mouli Check on next intent
   backup [file]                      online backup to file, or to BACKUP_DIR with rotation
   weeks                              weekly modifiers of the current and next season
   analytics [--days <n>]             active players per day, D+1 / D+3 retention, tier funnel,
@@ -235,6 +237,19 @@ export async function runAdmin(argv: string[], ctx: AdminContext): Promise<numbe
       if (!Number.isInteger(days) || days < 1 || days > 366)
         return usage(out, "--days must be an integer between 1 and 366");
       printAnalytics(out, analyticsReport(db, now, days));
+      return 0;
+    }
+    case "mouli-check": {
+      if (!arg) return usage(out, "mouli-check needs a pseudo");
+      const user = db
+        .prepare("SELECT id, pseudo FROM users WHERE pseudo = ? COLLATE NOCASE")
+        .get(arg) as { id: number; pseudo: string } | undefined;
+      if (!user) {
+        out(`No player with pseudo ${arg}.`);
+        return 1;
+      }
+      flagMouliCheck(db, user.id);
+      out(`Flagged ${user.pseudo} for a Mouli Check on next intent.`);
       return 0;
     }
     case "help":
