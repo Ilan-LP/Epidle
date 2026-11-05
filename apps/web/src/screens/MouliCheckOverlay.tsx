@@ -1,5 +1,5 @@
 import type { MouliChallenge } from "@epidle/api-client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { blockArt } from "../blockArt";
 
 /** Quadrants are drawn taller than wide, like a terminal cell (about 1:2) but less stretched. */
@@ -36,8 +36,16 @@ export function MouliCheckOverlay({
   onRenew: () => Promise<boolean>;
 }) {
   const [value, setValue] = useState("");
+  const input = useRef<HTMLInputElement>(null);
   const [status, setStatus] = useState<"idle" | "busy" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // In place of autoFocus (lint: a11y/noAutofocus). Also after each answer or new code: the input
+  // is disabled while busy, which drops the focus.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: refocus when the code changes
+  useEffect(() => {
+    if (status !== "busy") input.current?.focus();
+  }, [status, challenge.id]);
 
   const renew = async (reason: string | null = null) => {
     setStatus("busy");
@@ -112,6 +120,7 @@ export function MouliCheckOverlay({
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ color: "#58a6ff", fontWeight: "bold" }}>code&gt;</span>
           <input
+            ref={input}
             type="text"
             value={value}
             onChange={(e) => {
@@ -119,7 +128,6 @@ export function MouliCheckOverlay({
               if (status === "error") setStatus("idle");
             }}
             placeholder="Ex: 7K4B"
-            autoFocus
             disabled={status === "busy"}
             style={{
               flex: 1,
