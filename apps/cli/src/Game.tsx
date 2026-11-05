@@ -10,7 +10,7 @@ import {
 import type { Game as GameData } from "@epidle/api-client/react";
 import { Box, type DOMElement, Text, useApp, useBoxMetrics, useWindowSize } from "ink";
 import { useRef, useState } from "react";
-import { useGame } from "./hooks";
+import { useClient, useGame } from "./hooks";
 import { useKeys } from "./keys";
 import { Dashboard } from "./screens/Dashboard";
 import { Help } from "./screens/Help";
@@ -153,8 +153,16 @@ function Screen({
   height: number;
   wide: boolean;
 } & Omit<Props, "setLang">) {
+  const { server } = useClient();
   if (game.challenge) {
-    return <MouliCheck challenge={game.challenge} onSolve={game.solveChallenge} />;
+    return (
+      <MouliCheck
+        challenge={game.challenge}
+        onSolve={game.solveChallenge}
+        onRenew={game.renewChallenge}
+        webUrl={server}
+      />
+    );
   }
 
   // Screens that don't need the game state render right away.

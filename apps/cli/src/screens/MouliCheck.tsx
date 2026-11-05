@@ -8,13 +8,26 @@ const ALLOWED = /^[A-Za-z0-9]+$/;
 export function MouliCheck({
   challenge,
   onSolve,
+  onRenew,
+  webUrl,
 }: {
   challenge: MouliChallenge;
   onSolve: (answer: string) => Promise<{ ok: boolean; error?: string; remainingAttempts?: number }>;
+  onRenew: () => Promise<boolean>;
+  /** Where the web client lives: it draws the code without depending on the terminal font. */
+  webUrl: string;
 }) {
   const [value, setValue] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const renew = async (reason: string | null = null) => {
+    setBusy(true);
+    setValue("");
+    const ok = await onRenew();
+    setBusy(false);
+    setError(ok ? reason : "Impossible d'obtenir un nouveau code, réessaie.");
+  };
 
   const submit = async () => {
     const trimmed = value.trim();
@@ -31,9 +44,9 @@ export function MouliCheck({
       if (res.error === "invalid_code") {
         setError(`Code incorrect ! Tentatives restantes : ${res.remainingAttempts ?? 0}`);
       } else if (res.error === "too_many_attempts") {
-        setError("Trop d'échecs. Un nouveau défi a été généré.");
-      } else if (res.error === "expired") {
-        setError("Ce défi a expiré.");
+        await renew("Trop d'échecs : voici un nouveau code.");
+      } else if (res.error === "expired" || res.error === "not_found") {
+        await renew("Ce code a expiré : en voici un nouveau.");
       } else {
         setError("Erreur de validation, réessaie.");
       }
@@ -43,6 +56,7 @@ export function MouliCheck({
   useInput(
     (input, key) => {
       if (key.return) return void submit();
+      if (key.tab) return void renew();
       if (key.backspace || key.delete) {
         setValue((v) => v.slice(0, -1));
         setError(null);
@@ -74,7 +88,11 @@ export function MouliCheck({
       </Text>
       {error && <T tone="bad">{error}</T>}
       <Text> </Text>
-      <T tone="dim">[Entrée] valider · [Retour] effacer</T>
+      <T tone="dim">[Entrée] valider · [Retour] effacer · [Tab] nouveau code</T>
+      <T tone="dim">
+        Code mal affiché ? Ton terminal n'a peut-être pas ces caractères : passe par la version web,{" "}
+        <A>{webUrl}</A>
+      </T>
     </Box>
   );
 }

@@ -151,6 +151,16 @@ export function getOrCreateChallenge(db: Db, userId: number, now: number): Mouli
   };
 }
 
+/**
+ * Replaces the player's challenge with a fresh one, for a code that renders badly. The attempts
+ * start over too: brute force stays out of reach (32^4 codes, rate limited) and a bot reading
+ * the glyphs gains nothing from it.
+ */
+export function renewChallenge(db: Db, userId: number, now: number): MouliChallengePayload {
+  db.prepare("DELETE FROM mouli_challenges WHERE user_id = ?").run(userId);
+  return getOrCreateChallenge(db, userId, now);
+}
+
 export type SolveResult =
   | { ok: true }
   | { ok: false; error: "expired" | "not_found" }

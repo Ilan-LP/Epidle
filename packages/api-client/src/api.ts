@@ -236,6 +236,8 @@ export function createApi({
     /** Solves an anti-bot Mouli Check challenge. */
     solveMouliCheck: (id: string, answer: string) =>
       request<{ ok: boolean }>("POST", "/api/mouli-check/solve", { id, answer }),
+    /** Replaces the pending challenge, for a code that renders badly. 409 if none is pending. */
+    renewMouliCheck: () => request<{ challenge: MouliChallenge }>("POST", "/api/mouli-check/new"),
   };
 }
 

@@ -46,6 +46,8 @@ export interface Game {
   solveChallenge: (
     answer: string,
   ) => Promise<{ ok: boolean; error?: string; remainingAttempts?: number }>;
+  /** Asks for a new code. False on failure, with the reason in the log. */
+  renewChallenge: () => Promise<boolean>;
 }
 
 export interface GameOptions {
@@ -179,7 +181,23 @@ export function useGame(api: Api, onAuthLost: () => void, options: GameOptions =
     [api, challenge, say, refresh],
   );
 
-  return { projection, error, log, act, say, challenge, solveChallenge };
+  const renewChallenge = useCallback(async (): Promise<boolean> => {
+    try {
+      setChallenge((await api.renewMouliCheck()).challenge);
+      return true;
+    } catch (e) {
+      // Verified meanwhile (another tab or device): nothing left to solve.
+      if (e instanceof ApiError && e.status === 409) {
+        setChallenge(null);
+        return true;
+      }
+      const message = errorMessage(e, () => authLost.current());
+      if (message) say("err", `Nouveau code : ${message}`);
+      return false;
+    }
+  }, [api, say]);
+
+  return { projection, error, log, act, say, challenge, solveChallenge, renewChallenge };
 }
 
 /** Fetches on mount, when `key` changes and every `intervalMs`. */
