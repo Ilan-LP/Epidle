@@ -71,7 +71,11 @@ export function Game({ pseudo, lang, setLang, onAuthLost, onPseudo, onLogout }: 
       {game.projection && <WeekBanner p={game.projection} />}
       <main>
         {game.challenge ? (
-          <MouliCheckOverlay challenge={game.challenge} onSolve={game.solveChallenge} />
+          <MouliCheckOverlay
+            challenge={game.challenge}
+            onSolve={game.solveChallenge}
+            onRenew={game.renewChallenge}
+          />
         ) : (
           <Screen
             route={route}

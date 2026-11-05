@@ -165,4 +165,40 @@ describe("mouli-check HTTP API integration", () => {
     const unblocked = await t.intent(token, { type: "setStrictness", stage: "loc", level: 1 });
     expect(unblocked.statusCode).toBe(200);
   });
+
+  it("gives a new code on request while a check is pending, and only then", async () => {
+    const t = await testApp();
+    const token = t.player("oid-mouli-renew", "RenewPlayer");
+    const renew = () =>
+      t.app.inject({ method: "POST", url: "/api/mouli-check/new", headers: t.auth(token) });
+
+    expect((await renew()).statusCode).toBe(409);
+
+    flagMouliCheck(t.db, 1);
+    const first = (await t.intent(token, { type: "setStrictness", stage: "loc", level: 1 })).json();
+    const renewed = await renew();
+    expect(renewed.statusCode).toBe(200);
+    const { challenge } = renewed.json();
+    expect(challenge.id).not.toBe(first.challenge.id);
+    expect(challenge.ascii).toHaveLength(4);
+
+    // The old code is gone, the new one is the one to solve.
+    const old = await t.app.inject({
+      method: "POST",
+      url: "/api/mouli-check/solve",
+      headers: t.auth(token),
+      payload: { id: first.challenge.id, answer: "AAAA" },
+    });
+    expect(old.json().error).toBe("not_found");
+    const row = t.db
+      .prepare("SELECT raw_code FROM mouli_challenges WHERE id = ?")
+      .get(challenge.id) as { raw_code: string };
+    const solved = await t.app.inject({
+      method: "POST",
+      url: "/api/mouli-check/solve",
+      headers: t.auth(token),
+      payload: { id: challenge.id, answer: row.raw_code },
+    });
+    expect(solved.statusCode).toBe(200);
+  });
 });

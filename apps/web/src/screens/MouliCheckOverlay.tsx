@@ -1,5 +1,26 @@
 import type { MouliChallenge } from "@epidle/api-client";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { blockArt } from "../blockArt";
+
+/** Quadrants are drawn taller than wide, like a terminal cell (about 1:2) but less stretched. */
+const ROW_STRETCH = 1.5;
+
+/** Scales with the box: full width on a phone, capped so it stays a code and not a banner. */
+function ChallengeArt({ rows }: { rows: readonly string[] }) {
+  const art = useMemo(() => blockArt(rows), [rows]);
+  const height = art.height * ROW_STRETCH;
+  return (
+    <svg
+      viewBox={`0 0 ${art.width} ${height}`}
+      role="img"
+      aria-label="Code à recopier"
+      shapeRendering="crispEdges"
+      style={{ display: "block", width: "100%", maxWidth: 420, height: "auto", userSelect: "none" }}
+    >
+      <path d={art.path} transform={`scale(1 ${ROW_STRETCH})`} fill="#e3b341" />
+    </svg>
+  );
+}
 
 /**
  * In-game Mouli Check overlay. Shown when the server returns 403 mouli_check_required
@@ -8,13 +29,23 @@ import { useState } from "react";
 export function MouliCheckOverlay({
   challenge,
   onSolve,
+  onRenew,
 }: {
   challenge: MouliChallenge;
   onSolve: (answer: string) => Promise<{ ok: boolean; error?: string; remainingAttempts?: number }>;
+  onRenew: () => Promise<boolean>;
 }) {
   const [value, setValue] = useState("");
   const [status, setStatus] = useState<"idle" | "busy" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const renew = async (reason: string | null = null) => {
+    setStatus("busy");
+    setValue("");
+    const ok = await onRenew();
+    setStatus(reason || !ok ? "error" : "idle");
+    setErrorMsg(ok ? reason : "Impossible d'obtenir un nouveau code, réessaie.");
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,9 +60,9 @@ export function MouliCheckOverlay({
       if (res.error === "invalid_code") {
         setErrorMsg(`Code incorrect ! Tentatives restantes : ${res.remainingAttempts ?? 0}`);
       } else if (res.error === "too_many_attempts") {
-        setErrorMsg("Trop d'échecs. Un nouveau défi va être généré.");
-      } else if (res.error === "expired") {
-        setErrorMsg("Ce défi a expiré. Relance une action pour en recevoir un nouveau.");
+        await renew("Trop d'échecs : voici un nouveau code.");
+      } else if (res.error === "expired" || res.error === "not_found") {
+        await renew("Ce code a expiré : en voici un nouveau.");
       } else {
         setErrorMsg("Erreur de validation, réessaie.");
       }
@@ -74,19 +105,7 @@ export function MouliCheckOverlay({
           justifyContent: "center",
         }}
       >
-        <pre
-          style={{
-            margin: 0,
-            color: "#e3b341",
-            fontWeight: "bold",
-            fontSize: 16,
-            lineHeight: 1.25,
-            letterSpacing: 1,
-            userSelect: "none",
-          }}
-        >
-          {challenge.ascii.join("\n")}
-        </pre>
+        <ChallengeArt rows={challenge.ascii} />
       </div>
 
       <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -104,6 +123,7 @@ export function MouliCheckOverlay({
             disabled={status === "busy"}
             style={{
               flex: 1,
+              minWidth: 0,
               background: "#0d1117",
               border: "1px solid #30363d",
               color: "#e6edf3",
@@ -150,7 +170,23 @@ export function MouliCheckOverlay({
         )}
 
         <div style={{ color: "#8b949e", fontSize: 12, marginTop: 4 }}>
-          [Entrée] pour valider · Expire dans {challenge.expiresIn}s
+          [Entrée] pour valider · Expire dans {challenge.expiresIn}s ·{" "}
+          <button
+            type="button"
+            style={{
+              background: "none",
+              border: "none",
+              padding: 0,
+              color: "#58a6ff",
+              font: "inherit",
+              textDecoration: "underline",
+              cursor: "pointer",
+            }}
+            onClick={() => void renew()}
+            disabled={status === "busy"}
+          >
+            code illisible ? nouveau code
+          </button>
         </div>
       </form>
     </div>

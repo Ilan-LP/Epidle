@@ -110,12 +110,19 @@ describe("screens", () => {
       expiresIn: 120,
     };
     const out = renderToString(
-      <MouliCheck challenge={challenge} onSolve={async () => ({ ok: true })} />,
+      <MouliCheck
+        challenge={challenge}
+        onSolve={async () => ({ ok: true })}
+        onRenew={async () => true}
+        webUrl="https://epidle.example.org"
+      />,
       { columns: 80 },
     );
     expect(out).toContain("CONTRÔLE DE MOULI (Anti-Bot)");
     expect(out).toContain("Prouve ta présence humaine");
     expect(out).toContain("███");
     expect(out).toContain("code>");
+    expect(out).toContain("[Tab] nouveau code");
+    expect(out).toContain("https://epidle.example.org");
   });
 });

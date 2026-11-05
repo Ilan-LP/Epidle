@@ -8,7 +8,12 @@ import { weekFeed } from "./feed";
 import { loadGame, type Season, saveGame, stateBalance } from "./games";
 import { applyIntent, INTENT_SCHEMA, type Intent } from "./intents";
 import type { Rotation } from "./modifiers";
-import { getOrCreateChallenge, isMouliCheckRequired, solveChallenge } from "./mouli-check";
+import {
+  getOrCreateChallenge,
+  isMouliCheckRequired,
+  renewChallenge,
+  solveChallenge,
+} from "./mouli-check";
 import { PSEUDO_PATTERN, pseudoRefusal, setPseudo } from "./pseudo";
 import { currentSeason } from "./seasons";
 
@@ -18,6 +23,7 @@ const LEADERBOARD_SIZE = 50;
 const INTENT_RATE_LIMIT = { rateLimit: { max: 30, timeWindow: 10_000 } };
 const STATE_RATE_LIMIT = { rateLimit: { max: 60, timeWindow: 60_000 } };
 const READ_RATE_LIMIT = { rateLimit: { max: 30, timeWindow: 60_000 } };
+const MOULI_RENEW_RATE_LIMIT = { rateLimit: { max: 10, timeWindow: 60_000 } };
 
 const seasonView = (s: Season) => ({
   id: s.id,
@@ -288,6 +294,19 @@ export function registerApi(
         });
       }
       return { ok: true };
+    },
+  );
+
+  // Only while a check is pending: a verified player has nothing to renew.
+  app.post(
+    "/api/mouli-check/new",
+    { preHandler: requireUser, config: MOULI_RENEW_RATE_LIMIT },
+    async (request, reply) => {
+      const t = now();
+      const userId = request.user?.id as number;
+      if (!isMouliCheckRequired(db, userId, t))
+        return reply.code(409).send({ error: "not_required" });
+      return { challenge: renewChallenge(db, userId, t) };
     },
   );
 }
